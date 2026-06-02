@@ -1,0 +1,26 @@
+# Secrets -- never commit
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Runtime state
+memory.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local AI-assistant tooling / notes (not part of the product)
+CLAUDE.md
+CLAUDE.local.md
+.claude/
+
+# Local wake-word models (drop a custom hey_reachy.onnx here -- see docs/wakeword.md)
+models/

@@ -1,0 +1,31 @@
+[project]
+name = "everything-agent"
+version = "0.1.0"
+description = "An always-on, modular agent for the Reachy Mini robot."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+    "pyyaml>=6.0",
+    "python-dotenv>=1.0",   # loads .env (API keys)
+]
+
+[project.optional-dependencies]
+# The full Tier-2 brain (MCP servers). Needs Node.js + the Claude Code CLI on PATH.
+agent = ["claude-agent-sdk>=0.1.0"]
+# LLM providers -- power the router and the `fast` tool-using brain.
+anthropic = ["anthropic>=0.40.0"]
+gemini = ["google-genai>=0.3.0"]
+# Voice + hearing (Cartesia Sonic TTS + Ink-Whisper STT) and the audio plumbing.
+cartesia = ["cartesia>=2.0.0", "numpy>=1.24", "scipy>=1.10", "websockets>=12"]
+# On-device "Hey Reachy" wake word.
+wakeword = ["openwakeword>=0.6", "onnxruntime>=1.16"]
+# Real robot hardware.
+robot = ["reachy-mini"]
+
+[project.scripts]
+everything-agent = "everything_agent.__main__:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

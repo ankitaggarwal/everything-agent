@@ -1,0 +1,51 @@
+# everything-agent configuration -- your control panel.
+#
+# Every subsystem is a "port" with a chosen "backend" (adapter). Picking an
+# implementation is always the same move: set `backend:`. Everything defaults to
+# mock/simple so the robot runs with no hardware and no API keys. To see which
+# backends exist for a port, read the BACKENDS map in that port's __init__.py.
+
+# ---- HEAR ----
+hearing:
+  wakeword:
+    backend: mock            # mock | openwakeword
+    phrase: "hey reachy"
+  stt:
+    backend: mock            # mock (you type) | whisper | parakeet | cartesia
+
+# ---- DECIDE / ACT ----
+brain:
+  router:                    # the fast brain: instant vs escalate
+    backend: mock            # mock | anthropic | gemini
+    model: claude-haiku-4-5
+  agent:                     # the deliberate, tool-using brain
+    backend: mock            # mock | claude_sdk
+    model: claude-opus-4-8
+    mcp_servers: {}          # external tools, e.g.:
+      # telegram:
+      #   command: npx
+      #   args: ["-y", "@some/telegram-mcp-server"]
+
+# ---- EXPRESS ----
+express:
+  tts:
+    backend: mock            # mock | cartesia | parakeet | elevenlabs
+
+# ---- BODY & MIND ----
+robot:
+  backend: mock              # mock | reachy_mini
+memory:
+  backend: simple            # none | simple | mem0
+  path: memory.json
+approval:
+  auto_approve: false        # true = never ask (headless only)
+
+# ---- CAPABILITIES ----
+modules:                     # which modules to load
+  - idle
+  - system_time
+
+# ---- SHARED CLIENTS ----
+providers:                   # one client, reusable across ports (e.g. Cartesia TTS+STT)
+  cartesia:
+    enabled: false           # true + CARTESIA_API_KEY to enable real TTS
