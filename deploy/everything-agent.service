@@ -1,0 +1,32 @@
+# systemd unit for the Everything Agent on a Reachy Mini Wireless.
+#
+# Install it with deploy/install_service.sh (run on the robot). It starts the
+# agent on boot, after the Reachy Mini daemon (which owns the hardware + the
+# local media IPC the agent connects to) is up, and restarts it on failure.
+#
+# NOTE: only one app may control the robot at a time. While this service runs it
+# holds the robot, so stop it (`sudo systemctl stop everything-agent`) before
+# launching a different app from the dashboard.
+
+[Unit]
+Description=Everything Agent -- always-on voice agent for Reachy Mini
+After=network-online.target reachy-mini-daemon.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pollen
+WorkingDirectory=/home/pollen/everything-agent
+# API keys (ANTHROPIC_API_KEY, CARTESIA_API_KEY, CARTESIA_VOICE_ID, ...).
+EnvironmentFile=/home/pollen/everything-agent/.env
+Environment=HOME=/home/pollen
+Environment=EVERYTHING_AGENT_CONFIG=config.reachy.yaml
+# So the claude_sdk brain can find the Claude Code CLI (/usr/local/bin) + node.
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+ExecStart=/venvs/apps_venv/bin/python -u -m everything_agent
+# Give the daemon a moment if we win the boot race; just retry.
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
