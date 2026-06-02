@@ -1,0 +1,69 @@
+# Deployment config for the real Reachy Mini Wireless.
+# Run with:  EVERYTHING_AGENT_CONFIG=config.reachy.yaml python -m everything_agent
+#
+# v1 (interactive voice): always-listening mic -> Cartesia Ink-Whisper STT ->
+# Haiku router -> Cartesia Sonic voice + real head/antenna movement.
+# ("Hey Reachy" wake-word gating and the Claude-SDK tool brain come next.)
+
+hearing:
+  wakeword:
+    # mock = always-listening (responds to any speech).
+    # openwakeword = on-device wake-word detection. Set `model_path` to a custom
+    #   "Hey Reachy" model (see docs/wakeword.md), or `model` to a built-in name
+    #   (hey_jarvis, alexa, ...) as an interim. Flip backend to openwakeword once
+    #   a model is in place.
+    backend: openwakeword    # on-device wake word; trigger word below
+    model: alexa             # built-in openWakeWord model (says "alexa")
+    phrase: "alexa"
+    threshold: 0.5           # raise to reduce false triggers
+    # For a custom "hey reachy" model instead: see docs/wakeword.md, then set
+    # model_path: models/hey_reachy.onnx
+  stt:
+    backend: cartesia        # Cartesia Ink-Whisper streaming (uses CARTESIA_API_KEY)
+    model: ink-whisper
+    language: en
+    timeout: 30
+
+brain:
+  router:
+    backend: anthropic       # real Tier-1 reflex (Haiku) -- needs ANTHROPIC_API_KEY
+    model: claude-haiku-4-5
+  agent:
+    # haiku = real conversation, no tools (a stopgap; can bluff about actions).
+    # claude_sdk = the real tool-using brain (local modules + MCP servers +
+    #   approval gate). Needs Node + Claude Code CLI + `claude login` on the robot.
+    #   Note: this key's workspace caps Opus at 0 rpm, so the CLI auths via your
+    #   Claude subscription; keep model at a tier your login allows.
+    # fast = low-latency direct-API tool calling (Haiku, no subprocess) -- snappy.
+    # claude_sdk = full Agent SDK + MCP (auth: login -> Opus) but spawns a CLI each
+    #   turn (seconds slower); switch to it when you need MCP servers.
+    backend: fast
+    model: claude-haiku-4-5
+    # auth: login            # only for claude_sdk; uses CLAUDE_CODE_OAUTH_TOKEN
+    mcp_servers: {}          # e.g. telegram/clio -- see ROADMAP Phase 3 (claude_sdk only)
+
+express:
+  tts:
+    backend: cartesia        # Cartesia Sonic -> robot speaker
+    model: sonic-3           # Cartesia's most natural model
+    voice_id: 65209f8e-6140-4a20-b819-3cc2e21da19b   # "Nolan - Expressive Agent" (warm, natural)
+    language: en
+
+robot:
+  backend: reachy_mini       # real hardware via the on-board daemon
+
+memory:
+  backend: simple
+  path: memory.json
+
+approval:
+  auto_approve: true         # headless on the robot (no console to confirm)
+
+modules:
+  - idle
+  - system_time
+  - emotions               # physical emotion tools the brain uses to express itself
+
+providers:
+  cartesia:
+    enabled: false           # TTS/STT adapters read CARTESIA_API_KEY directly
