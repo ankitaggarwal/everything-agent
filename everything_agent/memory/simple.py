@@ -29,9 +29,13 @@ class SimpleMemory(Memory):
                 log.warning("Could not read %s -- starting empty", self.path)
 
     def _save(self):
+        # Write to a temp file then rename (atomic on POSIX) so a crash or
+        # power-cut mid-write can't leave a corrupt facts file behind.
+        tmp = self.path + ".tmp"
         try:
-            with open(self.path, "w") as f:
+            with open(tmp, "w") as f:
                 json.dump(self.facts, f, indent=2)
+            os.replace(tmp, self.path)
         except Exception:
             log.exception("Could not save memory to %s", self.path)
 

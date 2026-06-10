@@ -24,12 +24,20 @@ _SYSTEM = (
 class AnthropicRouter(Router):
     def __init__(self, config, ctx):
         self.model = config.get("model", "claude-haiku-4-5")
+        # A hung routing call stalls the whole voice loop, so keep it short.
+        self.timeout = float(config.get("timeout", 10.0))
+        self._client = None   # reused across turns (keeps the HTTP pool warm)
+
+    def _get_client(self):
+        if self._client is None:
+            from anthropic import AsyncAnthropic
+            self._client = AsyncAnthropic(timeout=self.timeout)
+        return self._client
 
     async def decide(self, text: str, memory_context: str = "") -> Decision:
         if not text or not text.strip():
             return Decision("ignore")
-        from anthropic import AsyncAnthropic
-        client = AsyncAnthropic()
+        client = self._get_client()
         user = (memory_context + "\n\nUser: " + text) if memory_context else text
         msg = await client.messages.create(
             model=self.model, max_tokens=200, system=_SYSTEM,

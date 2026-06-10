@@ -18,15 +18,21 @@ log = logging.getLogger("everything_agent.brain.agent")
 class HaikuAgent(AgentBrain):
     def __init__(self, config, ctx):
         self.model = (config or {}).get("model", "claude-haiku-4-5")
+        self.timeout = float((config or {}).get("timeout", 30.0))
         from ...persona import DEFAULT_PERSONA
         # No tools here (that's claude_sdk), so drop the movement instructions but
         # keep the same voice/character for a consistent personality.
         self.persona = (config or {}).get("personality") or DEFAULT_PERSONA
+        self._client = None   # reused across turns (keeps the HTTP pool warm)
+
+    def _get_client(self):
+        if self._client is None:
+            from anthropic import AsyncAnthropic
+            self._client = AsyncAnthropic(timeout=self.timeout)
+        return self._client
 
     async def run(self, text: str, memory_context: str = "") -> str:
-        from anthropic import AsyncAnthropic
-
-        client = AsyncAnthropic()
+        client = self._get_client()
         system = self.persona + ("\n\nWhat you know:\n" + memory_context if memory_context else "")
         try:
             msg = await client.messages.create(

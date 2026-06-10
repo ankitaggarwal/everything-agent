@@ -32,17 +32,22 @@ _DEFAULTS = {
 def load_config(path: str | None = None) -> dict:
     # Allow a deployment to point at a different config without touching the
     # committed default (e.g. EVERYTHING_AGENT_CONFIG=config.reachy.yaml on the robot).
-    path = path or os.environ.get("EVERYTHING_AGENT_CONFIG", "config.yaml")
+    explicit = path or os.environ.get("EVERYTHING_AGENT_CONFIG")
+    path = explicit or "config.yaml"
     if not os.path.exists(path):
+        if explicit:
+            # A config asked for by name that doesn't exist is a deploy bug;
+            # silently booting with mock defaults would only hide it.
+            raise FileNotFoundError(f"config not found: {path}")
         return _DEFAULTS
     try:
         import yaml
-        with open(path) as f:
-            return yaml.safe_load(f) or _DEFAULTS
-    except Exception:
+    except ImportError:
         logging.getLogger("everything_agent").warning(
-            "Could not load %s (PyYAML missing?) -- using defaults", path)
+            "PyYAML not installed -- ignoring %s and using built-in defaults", path)
         return _DEFAULTS
+    with open(path) as f:                       # malformed YAML crashes loudly here
+        return yaml.safe_load(f) or _DEFAULTS   # rather than silently going mock
 
 
 def main() -> None:

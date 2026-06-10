@@ -28,6 +28,7 @@ class EmotionsModule(Module):
 
     def setup(self, robot, providers, memory, config) -> None:
         self.robot = robot
+        self._tasks = set()   # asyncio only weakly references tasks; keep them alive
 
     def _play(self, steps) -> None:
         """Run a choreography in the background. steps: list of either
@@ -46,7 +47,9 @@ class EmotionsModule(Module):
                 log.warning("emotion playback failed: %s", e)
 
         try:
-            asyncio.get_running_loop().create_task(run())
+            task = asyncio.get_running_loop().create_task(run())
+            self._tasks.add(task)
+            task.add_done_callback(self._tasks.discard)
         except RuntimeError:  # no loop (e.g. tests) -> run synchronously
             asyncio.run(run())
 

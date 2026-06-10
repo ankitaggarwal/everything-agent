@@ -17,12 +17,14 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import time
 
 from .brain.agent import build as build_agent
 from .brain.router import build as build_router
 from .core.approval import Approval
 from .core.context import AgentContext
+from .core.ports import Decision
 from .core.registry import Registry
 from .expressing.tts import build as build_tts
 from .hearing.stt import build as build_stt
@@ -34,6 +36,11 @@ from .robot import build as build_robot
 log = logging.getLogger("everything_agent")
 
 _QUIT = {"quit", "exit", "bye", "goodbye"}
+
+# Common ways STT mis-transcribes an uncommon name, so addressing still works.
+_TRIGGER_MISHEARS = {
+    "reachy": ["reachy", "reachie", "reachee", "richie", "ritchie"],
+}
 
 
 class EverythingAgent:
@@ -66,20 +73,38 @@ class EverythingAgent:
         self.agent_brain = build_agent(brain.get("agent", {}), ctx)
         self.voice = build_tts(cfg.get("express", {}).get("tts", {}), ctx)
 
+        # Address gate: when there's no acoustic wake word (always-listening),
+        # only act on utterances that name the robot. `trigger` is the name to
+        # listen for; we also match common mis-hearings of it. Empty = act on all.
+        trigger = (cfg.get("hearing", {}).get("trigger") or "").strip().lower()
+        self.trigger = trigger
+        self.trigger_variants = sorted(
+            {trigger, *_TRIGGER_MISHEARS.get(trigger, [])}, key=len, reverse=True
+        ) if trigger else []
+
         self._running = True
         log.info("everything-agent online. Say something (or 'quit').")
 
     async def run(self) -> None:
-        await self.start()
         try:
+            await self.start()
             while self._running:
-                await self._cycle()
+                try:
+                    await self._cycle()
+                except (KeyboardInterrupt, asyncio.CancelledError):
+                    raise
+                except Exception:
+                    # One bad turn (network blip, API hiccup, mic glitch) must
+                    # never kill the always-on robot: log it and keep listening.
+                    log.exception("cycle failed -- recovering")
+                    await asyncio.sleep(1.0)
         except (KeyboardInterrupt, asyncio.CancelledError):
             pass
         finally:
             log.info("shutting down...")
-            self.ctx.robot.reset()
-            self.ctx.robot.disconnect()
+            if self.ctx.robot is not None:   # start() may have failed before connect
+                self.ctx.robot.reset()
+                self.ctx.robot.disconnect()
 
     async def _cycle(self) -> None:
         # HEAR --------------------------------------------------------
@@ -105,21 +130,52 @@ class EverythingAgent:
             return
         if not text.strip():
             return
-        if text.strip().lower() in _QUIT:
-            self.voice.speak("Bye!")
+
+        # ADDRESS GATE -- only act when spoken to by name (cheap, no LLM call) ---
+        addressed, text = self._addressed(text)
+        if not addressed:
+            log.info("not addressed (no %r) -- ignoring: %r", self.trigger, text[:50])
+            return
+
+        # Quit only when addressed -- an overheard "bye" (always-listening mode)
+        # must not shut the robot down. Tolerate STT punctuation ("Goodbye.").
+        if text.strip().lower().strip(" .,!?") in _QUIT:
+            await self._say("Bye!")
             self._running = False
             return
 
         # DECIDE + ACT -----------------------------------------------
         reply, t_brain = await self._handle(text)
 
-        # EXPRESS + MEMORY -------------------------------------------
+        # EXPRESS + MEMORY -- skipped when there's nothing to say (router "ignore").
         t1 = time.monotonic()
-        self.voice.speak(reply)
+        if reply:
+            await self._say(reply)
+            self.ctx.memory.add_turn(text, reply)
         t_tts = time.monotonic() - t1
-        self.ctx.memory.add_turn(text, reply)
         log.info("⏱  stt=%.2fs  brain=%.2fs  tts=%.2fs  total=%.2fs",
                  t_stt, t_brain, t_tts, t_stt + t_brain + t_tts)
+
+    async def _say(self, text: str) -> None:
+        """speak() blocks until the audio finishes playing, so run it in a worker
+        thread -- the event loop stays free and emotion gestures (background
+        tasks) keep animating DURING speech instead of freezing until it ends."""
+        await asyncio.to_thread(self.voice.speak, text)
+
+    def _addressed(self, text: str):
+        """When a trigger name is configured (always-listening mode), only treat
+        an utterance as meant for us if it names the robot. Returns
+        (is_addressed, cleaned_text) -- the trigger word is stripped so the brain
+        sees just the request."""
+        if not self.trigger_variants:
+            return True, text                      # no gate -> everything is for us
+        low = text.lower()
+        if not any(re.search(rf"\b{re.escape(v)}\b", low) for v in self.trigger_variants):
+            return False, text
+        cleaned = text
+        for v in self.trigger_variants:            # longest-first (set in start())
+            cleaned = re.sub(rf"\b{re.escape(v)}\b[\s,!.?-]*", "", cleaned, flags=re.IGNORECASE)
+        return True, (cleaned.strip() or text)
 
     async def _be_alive(self) -> None:
         """Idle micro-movements + speaker tracking, until cancelled (see _cycle)."""
@@ -133,12 +189,23 @@ class EverythingAgent:
     async def _handle(self, text: str):
         """Returns (reply, brain_seconds). Times the router and agent legs."""
         ctx_text = self.ctx.memory.context()
+        perceptions = await self.registry.gather_perceptions()
+        if perceptions:
+            ctx_text = (ctx_text + "\n\nWhat your senses report:\n" + perceptions).strip()
         t0 = time.monotonic()
-        decision = await self.router.decide(text, ctx_text)
+        try:
+            decision = await self.router.decide(text, ctx_text)
+        except Exception:
+            log.exception("router failed -- escalating to agent")
+            decision = Decision("agent")
         log.info("router: %s (%.2fs)", decision.action, time.monotonic() - t0)
         if decision.action == "ignore":
             return "", time.monotonic() - t0
         if decision.action == "instant":
             return decision.reply, time.monotonic() - t0
-        reply = await self.agent_brain.run(text, ctx_text)   # "agent"
+        try:
+            reply = await self.agent_brain.run(text, ctx_text)   # "agent"
+        except Exception:
+            log.exception("agent brain failed")
+            reply = "Sorry, my brain glitched for a second. Mind trying again?"
         return reply, time.monotonic() - t0

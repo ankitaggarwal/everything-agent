@@ -70,6 +70,19 @@ class CartesiaTTS(TTS):
         if "e" in err:
             log.warning("cartesia speak failed: %s", err["e"])
         self.robot.set_antennas(left=0.0, right=0.0)
+        self._drain_mic(media)
+
+    @staticmethod
+    def _drain_mic(media) -> None:
+        # The mic kept recording while we talked, so our own voice is now queued
+        # up -- discard it so the next listen() doesn't transcribe the robot.
+        try:
+            for _ in range(2000):   # bounded: ~stops even if frames keep arriving
+                frame = media.get_audio_sample()
+                if frame is None or getattr(frame, "size", 0) == 0:
+                    break
+        except Exception:  # noqa: BLE001
+            pass
 
     async def _speak(self, text: str, media) -> None:
         import time

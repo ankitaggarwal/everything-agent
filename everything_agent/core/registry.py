@@ -45,8 +45,12 @@ class Registry:
             if cls is None:
                 log.warning("Unknown module %r in config -- skipping", name)
                 continue
-            module = cls()
-            module.setup(self.robot, self.providers, self.memory, self.config)
+            try:
+                module = cls()
+                module.setup(self.robot, self.providers, self.memory, self.config)
+            except Exception:
+                log.exception("Module %r failed to set up -- skipping", name)
+                continue
             self.modules.append(module)
             log.info("Loaded module: %s", module.name)
 

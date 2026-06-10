@@ -30,6 +30,8 @@ class FastAgent(AgentBrain):
         cfg = config or {}
         self.model = cfg.get("model", "claude-haiku-4-5")
         self.max_tokens = int(cfg.get("max_tokens", 256))
+        # Per API call -- a spoken turn shouldn't hang for the SDK's default 10 min.
+        self.timeout = float(cfg.get("timeout", 30.0))
         from ...persona import DEFAULT_PERSONA
         self.personality = cfg.get("personality") or DEFAULT_PERSONA
         self.actions = ctx.actions
@@ -41,7 +43,7 @@ class FastAgent(AgentBrain):
     def _get_client(self):
         if self._client is None:
             from anthropic import AsyncAnthropic
-            self._client = AsyncAnthropic()
+            self._client = AsyncAnthropic(timeout=self.timeout)
         return self._client
 
     def _build_tools(self):
@@ -66,7 +68,9 @@ class FastAgent(AgentBrain):
         if action.sensitive and not await self.approval.confirm(f"{name}({args})"):
             return "User declined."
         try:
-            return await action.handler(args or {})
+            # str() in case a handler strays from the "return text" contract --
+            # a non-string tool_result would fail the whole API call.
+            return str(await action.handler(args or {}))
         except Exception as e:  # noqa: BLE001
             log.warning("tool %s failed: %s", name, e)
             return f"(tool error: {e})"

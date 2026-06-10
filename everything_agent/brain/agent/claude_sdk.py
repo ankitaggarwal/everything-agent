@@ -43,7 +43,7 @@ class ClaudeSdkAgent(AgentBrain):
             if _action.sensitive and not await approval.confirm(f"{_action.name}({args})"):
                 return {"content": [{"type": "text", "text": "User declined."}]}
             result = await _action.handler(args)
-            return {"content": [{"type": "text", "text": result}]}
+            return {"content": [{"type": "text", "text": str(result)}]}
 
         return _tool
 

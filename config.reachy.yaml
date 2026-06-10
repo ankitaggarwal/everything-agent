@@ -7,22 +7,19 @@
 
 hearing:
   wakeword:
-    # mock = always-listening (responds to any speech).
-    # openwakeword = on-device wake-word detection. Set `model_path` to a custom
-    #   "Hey Reachy" model (see docs/wakeword.md), or `model` to a built-in name
-    #   (hey_jarvis, alexa, ...) as an interim. Flip backend to openwakeword once
-    #   a model is in place.
-    backend: openwakeword    # on-device wake word; trigger word below
-    model: alexa             # built-in openWakeWord model (says "alexa")
-    phrase: "alexa"
-    threshold: 0.5           # raise to reduce false triggers
-    # For a custom "hey reachy" model instead: see docs/wakeword.md, then set
-    # model_path: models/hey_reachy.onnx
+    # mock = no acoustic wake word; the robot listens continuously. We instead
+    # gate on the spoken name (`trigger` below) so it only acts when addressed.
+    # (openwakeword is the alternative -- on-device "alexa"/custom model.)
+    backend: mock
   stt:
     backend: cartesia        # Cartesia Ink-Whisper streaming (uses CARTESIA_API_KEY)
     model: ink-whisper
     language: en
     timeout: 30
+  # Address gate (always-listening mode): only act on utterances that name the
+  # robot -- cheap check before any LLM call. Common mis-hearings are matched
+  # too. Set to "" to act on everything you say.
+  trigger: reachy
 
 brain:
   router:
