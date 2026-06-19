@@ -9,7 +9,7 @@ gemini:
   # to; gemini-2.5-flash-lite is fastest, gemini-2.5-flash is the safe default.
   model: "gemini-2.5-flash"
   api_key: ""              # leave blank -> read from config.local.yaml or $GEMINI_API_KEY
-  max_tokens: 200          # short spoken replies
+  max_tokens: 1000         # cap on reply length (longer answers allowed)
   history_turns: 6         # how many past turns of context to keep
   # Spoken once on startup (an audible speaker self-test, via Cartesia TTS). Blank to disable.
   greeting: "Hello there! I'm Reachy Mini. Say something and I'll answer."
