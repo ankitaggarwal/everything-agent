@@ -1,8 +1,10 @@
-"""Cartesia Ink-Whisper speech-to-text.
+"""Cartesia Ink-Whisper speech-to-text -- STREAMING.
 
-Takes one buffered utterance (16 kHz mono int16 PCM, as gathered by the VAD gate
-in app.py) and returns the transcribed text. We stream the audio to Cartesia's
-STT WebSocket, send `finalize`, and collect the final transcript segments.
+Instead of buffering the whole utterance and only THEN uploading + transcribing
+it (so the latency lands entirely after you stop talking), we open the STT
+WebSocket the moment you start speaking and stream the audio live. Cartesia
+transcribes as it arrives, so when you stop we just `finalize` and the transcript
+is ready almost immediately.
 
 Raw WebSocket (not the SDK) so the wire protocol is pinned regardless of the
 installed cartesia version.
@@ -11,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from contextlib import asynccontextmanager
 
 import numpy as np
 import websockets
@@ -29,32 +32,20 @@ def _is_noise(text: str) -> bool:
     return cleaned in _HALLUCINATIONS or len(cleaned) < 2
 
 
-async def transcribe(pcm_int16: bytes, *, api_key: str, model: str = "ink-whisper",
-                     language: str = "en", timeout: float = 8.0) -> str:
-    """utterance PCM (16k mono int16) -> text. Returns '' on noise/failure."""
-    if not pcm_int16 or not api_key:
-        return ""
-    # int16 -> float32 in [-1, 1], which is what we tell Cartesia we're sending.
-    f32 = (np.frombuffer(pcm_int16, dtype=np.int16).astype(np.float32) / 32768.0)
-    audio = f32.tobytes()
+class SttStream:
+    """A live STT connection: push() audio while you speak, finalize() when done."""
 
-    url = (f"wss://api.cartesia.ai/stt/websocket?model={model}"
-           f"&language={language}&encoding=pcm_f32le&sample_rate={_SR}")
-    headers = {"X-API-Key": api_key, "Cartesia-Version": "2024-11-13"}
-    segments: list[str] = []
+    def __init__(self, ws):
+        self.ws = ws
+        self.segments: list[str] = []
+        self._done = asyncio.Event()
+        self._task: asyncio.Task | None = None
 
-    async with websockets.connect(url, additional_headers=headers, max_size=4_000_000) as ws:
-        # ship the whole utterance in ~100 ms chunks, then ask the server to flush.
-        step = (_SR // 10) * 4  # 4 bytes per float32 sample
-        for i in range(0, len(audio), step):
-            await ws.send(audio[i:i + step])
-        await ws.send("finalize")
-
-        deadline = asyncio.get_running_loop().time() + timeout
-        while asyncio.get_running_loop().time() < deadline:
+    async def _consume(self) -> None:
+        while True:
             try:
-                msg = await asyncio.wait_for(ws.recv(), timeout=deadline - asyncio.get_running_loop().time())
-            except (asyncio.TimeoutError, websockets.exceptions.ConnectionClosed):
+                msg = await self.ws.recv()
+            except Exception:
                 break
             if isinstance(msg, bytes):
                 continue
@@ -65,9 +56,46 @@ async def transcribe(pcm_int16: bytes, *, api_key: str, model: str = "ink-whispe
             if ev.get("type") == "transcript" and ev.get("is_final"):
                 t = (ev.get("text") or "").strip()
                 if t:
-                    segments.append(t)
+                    self.segments.append(t)
             if ev.get("type") in ("done", "flush_done", "error"):
+                self._done.set()
                 break
 
-    text = " ".join(segments).strip()
-    return "" if _is_noise(text) else text
+    async def push(self, pcm_int16: bytes) -> None:
+        """Send one mic chunk (16k mono int16) live to Cartesia as float32."""
+        if not pcm_int16:
+            return
+        f32 = (np.frombuffer(pcm_int16, dtype=np.int16).astype(np.float32) / 32768.0)
+        try:
+            await self.ws.send(f32.tobytes())
+        except Exception:
+            pass
+
+    async def finalize(self, timeout: float = 4.0) -> str:
+        """Flush + return the final transcript ('' on noise/failure)."""
+        try:
+            await self.ws.send("finalize")
+        except Exception:
+            pass
+        try:
+            await asyncio.wait_for(self._done.wait(), timeout=timeout)
+        except asyncio.TimeoutError:
+            pass
+        text = " ".join(self.segments).strip()
+        return "" if _is_noise(text) else text
+
+
+@asynccontextmanager
+async def open_stream(*, api_key: str, model: str = "ink-whisper", language: str = "en"):
+    """Open a live STT stream; a background task collects transcripts as audio arrives."""
+    url = (f"wss://api.cartesia.ai/stt/websocket?model={model}"
+           f"&language={language}&encoding=pcm_f32le&sample_rate={_SR}")
+    headers = {"X-API-Key": api_key, "Cartesia-Version": "2024-11-13"}
+    async with websockets.connect(url, additional_headers=headers, max_size=4_000_000) as ws:
+        stream = SttStream(ws)
+        stream._task = asyncio.create_task(stream._consume())
+        try:
+            yield stream
+        finally:
+            if stream._task:
+                stream._task.cancel()
