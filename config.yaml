@@ -37,7 +37,7 @@ cartesia:
 # Dancing: a normal dance matches the song length, capped here; the 'zoo' special
 # dance plays its whole song. It cycles many moves, styled to the track's BPM.
 dance:
-  max_seconds: 60
+  max_seconds: 600         # effectively the whole song; say "stop" to halt early
 
 # Where the voice goes in and comes out.
 #   local  -> this laptop's mic + speakers (sounddevice), no robot motion. For dev.

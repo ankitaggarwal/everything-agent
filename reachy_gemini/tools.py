@@ -51,7 +51,7 @@ def build_tools(body, ctx: dict, cfg: dict | None = None) -> list:
     except Exception:
         meta = {}
     dance_stop = threading.Event()           # set by stop() to halt a dance mid-way
-    _SPECIAL = {"zoo": "zoo.mp3"}            # named dances tied to a specific track (full song)
+    _SPECIAL = {"zoo": "zoo.mp3", "zootopia": "zoo.mp3"}  # named dances -> a specific track
 
     def _stop_music():
         try:
@@ -116,15 +116,13 @@ def build_tools(body, ctx: dict, cfg: dict | None = None) -> list:
         special = _SPECIAL.get(key)
         if special and any(os.path.basename(t) == special for t in tracks):
             track = next(t for t in tracks if os.path.basename(t) == special)
-            full_song = True
         else:
             track = random.choice(tracks)
-            full_song = False
         info = meta.get(os.path.basename(track), {})
         bpm = float(info.get("bpm", 120.0))
         dur = float(info.get("duration", 30.0))
-        cap = float((cfg or {}).get("dance", {}).get("max_seconds", 60))
-        secs = dur if full_song else max(8.0, min(dur, cap))
+        cap = float((cfg or {}).get("dance", {}).get("max_seconds", 600))
+        secs = max(8.0, min(dur, cap))  # the WHOLE song; say "stop" to halt early
         # style: punchy moves for faster songs, the full varied set for slower ones
         energetic = [m for m in _ENERGETIC if m in _DANCES]
         pool = (energetic or list(DANCE_NAMES)) if bpm >= 115 else list(DANCE_NAMES)
