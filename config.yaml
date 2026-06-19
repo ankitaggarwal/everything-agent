@@ -8,6 +8,8 @@ gemini:
   model: "gemini-3.1-flash-live-preview"
   api_key: ""              # leave blank -> read from config.local.yaml or $GEMINI_API_KEY
   voice: "Kore"            # Puck | Kore | Charon | Fenrir | Aoede | Leda | Orus | Zephyr
+  # Spoken once on startup (also an audible speaker self-test). Blank to disable.
+  greeting: "Say a brief, warm one-sentence hello as Reachy Mini, the little robot."
   # Who the robot is. This is the system instruction sent to Gemini.
   persona: |
     You are Reachy Mini, a small, friendly desk robot with a round head and two
@@ -25,3 +27,7 @@ audio:
   input_rate: 16000
   output_rate: 24000
   chunk_ms: 50             # how often we ship a mic chunk to Gemini
+
+# Live diagram: a web page that moves with what Reachy actually hears & says.
+web:
+  port: 8080               # open http://<robot-ip>:8080 on the LAN. Blank/0 to disable.

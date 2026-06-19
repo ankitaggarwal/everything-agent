@@ -250,12 +250,8 @@ function setVisualsForScenario(){
   P.barge.style.opacity=scenario==='barge'?'.8':'.15';
 }
 
-function tick(){
-  if(!playing)return;
-  clock++;
-  const ph=phaseAt(clock);
-  if(ph.name!==phase){phase=ph.name; onEnterPhase(ph);}
-  // continuous + per-phase token spawning
+// per-frame visuals for a given phase -- shared by the canned demo AND live mode
+function applyPhaseVisuals(phase){
   spawnAcc++;
   if(spawnAcc%5===0){
     if(['listening','hearing'].includes(phase)){spawn(P.voice,getCss('--mic'));spawn(P.up,getCss('--mic'));}
@@ -264,20 +260,25 @@ function tick(){
     if(phase==='speaking'){spawn(P.down,getCss('--aud'));spawn(P.hear,getCss('--aud'));}
     if(phase==='interrupt')spawn(P.barge,getCss('--red'));
   }
-  // node highlights
   active('you',['listening','hearing','interrupt'].includes(phase));
   active('mic',['listening','hearing'].includes(phase));
   active('tool',['toolcall','toolret'].includes(phase));
   active('spk',phase==='speaking');
   active('ear',phase==='speaking'||phase==='done');
   nodes.gem.classList.toggle('thinking',['thinking','toolcall','toolret'].includes(phase));
-  // speaker bars + antennas animate while speaking
   const speaking = phase==='speaking';
   [...bars.children].forEach(b=>b.style.height=(speaking?(15+Math.random()*85):8)+'%');
   const a = speaking?Math.sin(clock*0.5)*22:0;
   antL.style.transform=`rotate(${-a}deg)`; antR.style.transform=`rotate(${a}deg)`;
-
   stepTokens();
+}
+
+function tick(){
+  if(!playing)return;
+  clock++;
+  const ph=phaseAt(clock);
+  if(ph.name!==phase){phase=ph.name; onEnterPhase(ph);}
+  applyPhaseVisuals(phase);
   if(clock>plan.total+40){ playing=false; document.getElementById('play').textContent='▶ Play a turn'; }
   requestAnimationFrame(tick);
 }
@@ -327,6 +328,74 @@ document.querySelectorAll('.node').forEach(el=>el.onclick=()=>{
   document.getElementById('detail').innerHTML=
     `<h3>${d[0]}</h3><p>${d[1]}</p><pre class="mono">${d[2].replace(/</g,'&lt;')}</pre>`;
 });
+
+// ---- LIVE MODE: wire to the robot's real events over SSE ----
+// The same diagram, but driven by what Reachy actually hears & says. Served from
+// the robot at http://<ip>:8080. On file:// the EventSource just fails -> demo mode.
+let live=false, livePhase='', lastT=null, turnT0=null;
+let lastStage=null, lastRowTxt=null, rowAccum='';
+const STAGE2PHASE={listening:'listening',hearing:'hearing',thinking:'thinking',
+  tool_call:'toolcall',no_tool:'noTool',speaking:'speaking',interrupted:'interrupt',done:'done'};
+const ICON={listening:'🎙️',hearing:'👂',thinking:'🧠',tool_call:'🔧',no_tool:'💬',
+  speaking:'🔊',interrupted:'✋',done:'✓'};
+function esc(s){return (s+'').replace(/&/g,'&amp;').replace(/</g,'&lt;')}
+
+function enterLive(){
+  live=true; playing=false;
+  const play=document.getElementById('play');
+  play.disabled=true; play.textContent='● LIVE'; play.style.opacity=.6;
+  document.querySelectorAll('#scenario button,#reset').forEach(b=>{b.disabled=true;b.style.opacity=.45;});
+  document.querySelector('.sub').innerHTML=
+    '<b style="color:var(--aud)">● LIVE</b> — wired to Reachy. The flow below is the robot’s real '+
+    'listening &amp; speaking, stamped to the millisecond.';
+  con.innerHTML=''; clock=0; livePhase='';
+  requestAnimationFrame(liveTick);
+}
+function liveTick(){
+  if(!live)return;
+  clock++;
+  applyPhaseVisuals(livePhase);
+  requestAnimationFrame(liveTick);
+}
+function liveLog(stage,text,dms,extra){
+  // coalesce streaming transcript chunks (hearing/speaking) into one growing row
+  if(stage===lastStage && (stage==='hearing'||stage==='speaking') && lastRowTxt){
+    rowAccum+=text; lastRowTxt.innerHTML=esc(rowAccum); con.scrollTop=con.scrollHeight; return;
+  }
+  const r=document.createElement('div'); r.className='row';
+  const d = dms!=null ? `<span style="color:var(--faint)">+${dms} ms</span> ` : '';
+  const icon=ICON[stage]||'·';
+  r.innerHTML = d + `<span class="s">${icon} ${stage}</span>` +
+    `<span class="txt">${text?esc(text):''}</span>` +
+    (extra?`<span style="color:var(--aud)"> · ${esc(extra)}</span>`:'');
+  con.appendChild(r); con.scrollTop=con.scrollHeight;
+  lastStage=stage; lastRowTxt=r.querySelector('.txt'); rowAccum=text||'';
+}
+function onLiveEvent(ev, isReplay){
+  const now=ev.t;
+  const dms = lastT==null?null:Math.round(now-lastT); lastT=now;
+  const phase=STAGE2PHASE[ev.stage];
+  // latency: when the model starts speaking, how long since your turn ended?
+  if(ev.stage==='hearing' && turnT0==null) turnT0=now;
+  let extra='';
+  if(ev.stage==='speaking' && turnT0!=null){extra=(now-turnT0)+' ms to first audio'; turnT0=null;}
+  // replayed history populates the console + timing, but doesn't drive live motion
+  if(!isReplay){
+    if(phase) livePhase=phase;
+    if(ev.stage==='done'){ setTimeout(()=>{ if(live) livePhase='listening'; }, 600); }
+  }
+  liveLog(ev.stage, ev.text, dms, extra);
+}
+(function connectLive(){
+  if(typeof EventSource==='undefined') return;            // file:// or old browser -> demo
+  try{
+    const es=new EventSource('/events');
+    es.onopen=()=>{ if(!live) enterLive(); };
+    es.onmessage=(e)=>{ try{ onLiveEvent(JSON.parse(e.data), false); }catch(_){} };
+    es.addEventListener('replay', (e)=>{ try{ onLiveEvent(JSON.parse(e.data), true); }catch(_){} });
+    // onerror with no prior open just leaves us in canned demo mode
+  }catch(_){}
+})();
 
 // responsive scale
 function fit(){const w=document.querySelector('.stageWrap').clientWidth;

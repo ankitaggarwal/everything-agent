@@ -90,12 +90,35 @@ class Agent:
         for t in tasks:
             t.cancel()
 
+    async def _greet(self) -> None:
+        """Speak a short hello on startup -- nice UX and an audible speaker self-test."""
+        greeting = self.cfg.get("gemini", {}).get("greeting")
+        if not greeting:
+            return
+        await self.session.send_client_content(
+            turns=types.Content(role="user", parts=[types.Part(text=greeting)]),
+            turn_complete=True,
+        )
+
+    def _start_webview(self) -> None:
+        """Serve the live diagram if a port is configured (best-effort)."""
+        port = self.cfg.get("web", {}).get("port")
+        if not port:
+            return
+        try:
+            from . import webview
+            webview.start(int(port))
+        except Exception as e:  # never let the UI take down the agent
+            print(f"[webview] disabled: {e}", flush=True)
+
     async def run(self, stop_event=None) -> None:
         self.body.start()
+        self._start_webview()
         events.emit(events.LISTENING, text=f"({self.body.name}) say something...")
         try:
             async with open_session(self.cfg) as session:
                 self.session = session
+                await self._greet()
                 tasks = [asyncio.create_task(self._capture()),
                          asyncio.create_task(self._receive())]
                 if stop_event is not None:
