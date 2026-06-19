@@ -230,6 +230,14 @@ class RobotMediaBody:
             self.robot.wake_up()
         except Exception:
             pass
+        # Max the speaker volume -- the daemon resets it to low on each restart.
+        import subprocess
+        for ctl in ("PCM", "Headset"):
+            try:
+                subprocess.run(["amixer", "-c", "0", "set", ctl, "100%", "unmute"],
+                               capture_output=True, timeout=5)
+            except Exception:
+                pass
 
     def stop(self) -> None:
         self._speaking = False

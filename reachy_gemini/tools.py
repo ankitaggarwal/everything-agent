@@ -56,6 +56,8 @@ def build_tools(body, ctx: dict, cfg: dict | None = None) -> list:
         "zoo": "zoo.mp3", "zootopia": "zoo.mp3",
         "move it": "move_it.mp3", "moveit": "move_it.mp3",
         "move it move it": "move_it.mp3", "madagascar": "move_it.mp3",
+        "mcqueen": "mcqueen.mp3", "cars": "mcqueen.mp3",
+        "lightning mcqueen": "mcqueen.mp3", "lightning": "mcqueen.mp3",
     }
 
     def _stop_music():
