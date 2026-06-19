@@ -569,10 +569,13 @@ function onLiveEvent(eventData, isReplay) {
   const deltaMs = lastT === null ? null : Math.round(t - lastT);
   lastT = t;
 
-  // A new turn begins when the mic arms (listening): clear boxes + heatmap.
-  if (stage === 'listening') {
+  // Reset for the new turn only when you START SPEAKING again (`hearing`), NOT on
+  // `listening`. That keeps the previous turn's numbers + heatmap colours on screen
+  // through the whole idle wait, so you have time to read them; the loop is already
+  // listening in the background and clears the moment your next utterance begins.
+  if (stage === 'hearing') {
     currentTurn = freshTurn();
-    hearingT = null;
+    hearingT = t;
     clearHeatmap();
     document.querySelectorAll('.stages-grid .stage-box[data-stage] .latency').forEach(el => {
       if (el.closest('.stage-box').dataset.stage !== 'listening') {
@@ -580,7 +583,6 @@ function onLiveEvent(eventData, isReplay) {
       }
     });
   }
-  if (stage === 'hearing') hearingT = t;
 
   // Each stage writes its EXACT latency into its own box.
   if (stage === 'transcribing' && hearingT !== null) {
