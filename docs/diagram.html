@@ -293,6 +293,39 @@
   .log-container::-webkit-scrollbar-thumb:hover {
     background: #999;
   }
+
+  /* Tool calls */
+  .tools-section {
+    margin: 24px 0;
+    padding: 16px;
+    border: 1px solid #f0c000;
+    border-radius: 8px;
+    background: #fffbeb;
+  }
+  .tools-section h2 {
+    margin: 0 0 12px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #92740a;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .tools-list { display: flex; flex-wrap: wrap; gap: 8px; }
+  .tool-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 16px;
+    background: #fef3c7;
+    border: 1px solid #f0c000;
+    font-family: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+    font-size: 13px;
+    color: #1a1a1a;
+    animation: toolpop 0.25s ease;
+  }
+  .tool-badge .tms { color: #92740a; font-size: 11px; }
+  @keyframes toolpop { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 </style>
 </head>
 <body>
@@ -354,6 +387,12 @@
     </div>
   </div>
 
+  <!-- Tool calls -->
+  <div class="tools-section" id="toolsSection" style="display:none">
+    <h2>🔧 Tool calls this turn</h2>
+    <div id="toolsList" class="tools-list"></div>
+  </div>
+
   <!-- Event log -->
   <div class="log-section">
     <h2>Event log</h2>
@@ -371,6 +410,7 @@ const STAGE_ICONS = {
   transcribing: '📝',
   transcribed: '✓',
   thinking: '🧠',
+  tool: '🔧',
   reply: '💬',
   speaking: '🔊',
   done: '🏁',
@@ -397,7 +437,7 @@ let hearingT = null;  // wall-clock (ms) when the mic opened, to measure talk du
 // event stage -> which box it lights up / writes its latency to
 const STAGE_TO_BOX = {
   listening: 'listening', hearing: 'speak', transcribing: 'speak',
-  transcribed: 'stt', thinking: 'llm', reply: 'llm', speaking: 'tts',
+  transcribed: 'stt', thinking: 'llm', tool: 'llm', reply: 'llm', speaking: 'tts',
   done: 'total', error: null
 };
 // box -> currentTurn field, for the heatmap
@@ -582,6 +622,24 @@ function onLiveEvent(eventData, isReplay) {
         el.textContent = '—'; el.classList.remove('value');
       }
     });
+    const tl = document.getElementById('toolsList');
+    if (tl) tl.innerHTML = '';
+    const ts = document.getElementById('toolsSection');
+    if (ts) ts.style.display = 'none';
+  }
+
+  // A tool call fired -> show it as a badge (the user wants function calls visible).
+  if (stage === 'tool') {
+    const ts = document.getElementById('toolsSection');
+    const tl = document.getElementById('toolsList');
+    if (ts && tl) {
+      ts.style.display = '';
+      const b = document.createElement('span');
+      b.className = 'tool-badge';
+      b.innerHTML = `🔧 ${formatText(text)}` +
+        (typeof ms === 'number' ? ` <span class="tms">${ms} ms</span>` : '');
+      tl.appendChild(b);
+    }
   }
 
   // Each stage writes its EXACT latency into its own box.

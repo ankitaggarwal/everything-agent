@@ -30,7 +30,7 @@ class Agent:
     def __init__(self, cfg: dict, body=None):
         self.cfg = cfg
         self.body = body if body is not None else make_body(cfg)
-        self.brain = Brain(cfg)
+        self.brain = Brain(cfg, self.body)
         c = cfg.get("cartesia", {})
         self._cart = dict(api_key=c.get("api_key", ""), language=c.get("language", "en"))
         self._stt_model = c.get("stt_model", "ink-whisper")
@@ -98,6 +98,9 @@ class Agent:
         events.emit(events.THINKING, text="Gemini Flash…")
         reply = await self.brain.ask(text)
         t_llm = time.monotonic()
+        if self.brain.ignored:
+            events.emit(events.DONE, text="🙊 ignored — stayed silent", ms=_ms(t0, t_llm))
+            return
         if not reply:
             events.emit(events.ERROR, text="no reply from the brain", ms=_ms(t_stt, t_llm))
             return

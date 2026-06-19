@@ -245,7 +245,8 @@ class RobotMediaBody:
         sample = self.robot.media.get_audio_sample()  # (N,2) float32 @16k or None
         if sample is None or len(sample) == 0:
             return b""
-        mono = sample[:, 0] if sample.ndim == 2 else sample
+        # Average both mic channels (better SNR than one channel) -> cleaner STT.
+        mono = sample.mean(axis=1) if sample.ndim == 2 else sample
         return (np.clip(mono, -1.0, 1.0) * 32767).astype(np.int16).tobytes()
 
     def play(self, pcm_24k: bytes) -> None:
