@@ -51,7 +51,12 @@ def build_tools(body, ctx: dict, cfg: dict | None = None) -> list:
     except Exception:
         meta = {}
     dance_stop = threading.Event()           # set by stop() to halt a dance mid-way
-    _SPECIAL = {"zoo": "zoo.mp3", "zootopia": "zoo.mp3"}  # named dances -> a specific track
+    dance_gen = [0]                          # bumped per dance so only the newest one runs
+    _SPECIAL = {                             # named dances -> a specific track
+        "zoo": "zoo.mp3", "zootopia": "zoo.mp3",
+        "move it": "move_it.mp3", "moveit": "move_it.mp3",
+        "move it move it": "move_it.mp3", "madagascar": "move_it.mp3",
+    }
 
     def _stop_music():
         try:
@@ -127,6 +132,15 @@ def build_tools(body, ctx: dict, cfg: dict | None = None) -> list:
         energetic = [m for m in _ENERGETIC if m in _DANCES]
         pool = (energetic or list(DANCE_NAMES)) if bpm >= 115 else list(DANCE_NAMES)
 
+        # stop any dance already running, then start fresh -- NO overlapping dances
+        dance_gen[0] += 1
+        my_gen = dance_gen[0]
+        dance_stop.set()
+        try:
+            robot.cancel_move()  # interrupt the current move so the old thread exits fast
+        except Exception:
+            pass
+        _stop_music()
         dance_stop.clear()
 
         def _run():
@@ -137,15 +151,16 @@ def build_tools(body, ctx: dict, cfg: dict | None = None) -> list:
             t_end = time.monotonic() + secs
             seq = list(pool)
             try:
-                while not dance_stop.is_set() and time.monotonic() < t_end:
+                while not dance_stop.is_set() and my_gen == dance_gen[0] and time.monotonic() < t_end:
                     random.shuffle(seq)
                     for name in seq:
-                        if dance_stop.is_set() or time.monotonic() >= t_end:
+                        if dance_stop.is_set() or my_gen != dance_gen[0] or time.monotonic() >= t_end:
                             break
                         robot.play_move(DanceMove(name), sound=False)  # blocks ~move.duration
             except Exception as e:
                 print(f"[tool] dance move failed: {e}", flush=True)
-            _stop_music()
+            if my_gen == dance_gen[0]:   # only the active dance stops the music
+                _stop_music()
         _bg(_run)
         label = f"{os.path.basename(track).replace('.mp3', '')} · {int(bpm)}bpm · {int(secs)}s"
         _emit("dance", label, t0)
@@ -155,6 +170,7 @@ def build_tools(body, ctx: dict, cfg: dict | None = None) -> list:
         """Stop the current dance, any movement, and the music right NOW. Call whenever the
         user says stop, stop dancing, that's enough, or quiet."""
         t0 = time.monotonic()
+        dance_gen[0] += 1   # invalidate any running dance so it can't resume
         dance_stop.set()
         if robot is not None:
             try:

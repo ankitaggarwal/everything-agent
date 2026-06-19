@@ -26,6 +26,13 @@ _clients: "set[queue.Queue]" = set()
 _recent: "collections.deque[str]" = collections.deque(maxlen=40)  # replay on (re)connect
 _lock = threading.Lock()
 _started = False
+_trigger = None  # callback(name, **kwargs) -> run a tool remotely (GET /tool?name=dance&move=zoo)
+
+
+def register_trigger(fn) -> None:
+    """Let the agent expose its tools so they can be fired from the browser/curl."""
+    global _trigger
+    _trigger = fn
 
 
 def _broadcast(stage: str, data: dict) -> None:
@@ -94,10 +101,28 @@ class _Handler(BaseHTTPRequestHandler):
             with _lock:
                 _clients.discard(q)
 
+    def _tool(self) -> None:
+        from urllib.parse import urlparse, parse_qs
+        q = parse_qs(urlparse(self.path).query)
+        name = (q.get("name") or [""])[0]
+        kwargs = {k: v[0] for k, v in q.items() if k != "name"}
+        try:
+            result = str(_trigger(name, **kwargs)) if (_trigger and name) else "no trigger/name"
+        except Exception as e:
+            result = f"error: {e}"
+        body = result.encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "text/plain; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
     def do_GET(self):
         try:
             if self.path == "/events":
                 self._events()
+            elif self.path.startswith("/tool"):
+                self._tool()
             elif self.path in ("/", "/index.html", "/diagram.html"):
                 self._html()
             else:

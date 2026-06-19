@@ -120,6 +120,13 @@ class Agent:
         events.emit(events.DONE, text="you stopped → robot spoke", ms=_ms(t0, ttf))
 
     # --- lifecycle --------------------------------------------------------- #
+    def _run_tool(self, name: str, **kwargs):
+        """Fire a brain tool by name (used by the webview's /tool trigger)."""
+        for t in self.brain.tools:
+            if t.__name__ == name:
+                return t(**kwargs)
+        return f"no tool named {name}"
+
     def _start_webview(self) -> None:
         port = self.cfg.get("web", {}).get("port")
         if not port:
@@ -127,6 +134,7 @@ class Agent:
         try:
             from . import webview
             webview.start(int(port))
+            webview.register_trigger(self._run_tool)  # GET /tool?name=dance&move=zoo
         except Exception as e:
             print(f"[webview] disabled: {e}", flush=True)
 
