@@ -82,33 +82,45 @@ def build_tools(body, ctx: dict, cfg: dict | None = None) -> list:
         return "looking around"
 
     def dance(move: str = "") -> str:
-        """Make the robot dance right now, WITH music. Pass a move name or leave it blank
-        for a fun random one. Call this immediately whenever the user asks you to dance --
-        never ask which move, never say you can't; just pick one and dance."""
+        """Dance to music for a FULL routine -- many moves chained together, not just one.
+        Pass a move name to favour that move, or leave it blank for a varied routine. Call
+        this immediately whenever the user asks you to dance; never refuse, never ask which."""
         t0 = time.monotonic()
-        name = (move or "").strip().lower()
-        if name not in _DANCES:
-            name = random.choice(DANCE_NAMES) if DANCE_NAMES else ""
-        ok = False
-        if robot is not None and name in _DANCES:
-            from reachy_mini_dances_library.dance_move import DanceMove
-            track = random.choice(tracks) if tracks else None
+        if robot is None or not DANCE_NAMES:
+            _emit("dance", "no robot", t0)
+            return "dancing"
+        from reachy_mini_dances_library.dance_move import DanceMove
+        track = random.choice(tracks) if tracks else None
+        secs = float((cfg or {}).get("dance", {}).get("seconds", 25))
 
-            def _run():
-                if track:
-                    try:
-                        robot.media.play_sound(track)  # non-blocking; plays in background
-                    except Exception as e:
-                        print(f"[tool] dance music failed: {e}", flush=True)
+        def _run():
+            if track:
                 try:
-                    robot.play_move(DanceMove(name), sound=False)
+                    robot.media.play_sound(track)  # non-blocking; plays in background
                 except Exception as e:
-                    print(f"[tool] dance({name}) play_move failed: {e}", flush=True)
-            _bg(_run)
-            ok = True
-        _emit("dance", name, t0)
-        pretty = name.replace("_", " ")
-        return f"Started the {pretty} dance with music — dancing now!" if ok else f"dancing {pretty}"
+                    print(f"[tool] dance music failed: {e}", flush=True)
+            t_end = time.monotonic() + secs
+            pool = list(DANCE_NAMES)
+            try:
+                # a real routine: cycle through ALL the moves in shuffled order, combining
+                # many different ones (a single move -- especially a simple one -- looks flat)
+                while time.monotonic() < t_end:
+                    random.shuffle(pool)
+                    for name in pool:
+                        if time.monotonic() >= t_end:
+                            break
+                        robot.play_move(DanceMove(name), sound=False)  # blocks ~move.duration
+            except Exception as e:
+                print(f"[tool] dance move failed: {e}", flush=True)
+            # stop the music so it doesn't outlast the dance (just the playbin, not TTS)
+            try:
+                from gi.repository import Gst
+                robot.media.audio._playbin.set_state(Gst.State.NULL)
+            except Exception:
+                pass
+        _bg(_run)
+        _emit("dance", f"~{int(secs)}s routine", t0)
+        return "Dancing to the music now — a full routine, here we go!"
 
     def look_and_describe() -> str:
         """Look through the camera and describe what you actually see. Call whenever the
