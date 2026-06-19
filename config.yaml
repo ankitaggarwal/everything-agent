@@ -7,7 +7,7 @@ gemini:
   # The TEXT brain only (no Gemini Live). Your transcript in -> a short reply out,
   # via one fast generate_content call. Use the fastest flash model you have access
   # to; gemini-2.5-flash-lite is fastest, gemini-2.5-flash is the safe default.
-  model: "gemini-2.5-flash"
+  model: "gemini-2.5-flash-lite"   # ~2x faster than flash (~0.8s vs ~1.5s); thinking off
   api_key: ""              # leave blank -> read from config.local.yaml or $GEMINI_API_KEY
   max_tokens: 1000         # cap on reply length (longer answers allowed)
   history_turns: 6         # how many past turns of context to keep
