@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import glob
 import io
+import json
+import os
 import random
 import threading
 import time
@@ -22,6 +24,11 @@ try:
     DANCE_NAMES = sorted(_DANCES)
 except Exception:  # library missing (laptop/mock)
     _DANCES, DANCE_NAMES = {}, []
+
+# The punchier moves -- used for higher-BPM tracks (style matching).
+_ENERGETIC = {"headbanger_combo", "polyrhythm_combo", "dizzy_spin", "interwoven_spirals",
+              "jackson_square", "groovy_sway_and_roll", "stumble_and_recover", "grid_snap",
+              "chicken_peck", "side_to_side_sway", "sharp_side_tilt"}
 
 _MUSIC_DIR = Path(__file__).resolve().parent.parent / "music"
 
@@ -39,6 +46,19 @@ def build_tools(body, ctx: dict, cfg: dict | None = None) -> list:
     """Return the tool callables, closing over the robot body, shared ctx, and config."""
     robot = getattr(body, "robot", None)
     tracks = sorted(glob.glob(str(_MUSIC_DIR / "*.mp3")))
+    try:
+        meta = json.loads((_MUSIC_DIR / "meta.json").read_text())  # {file: {duration, bpm}}
+    except Exception:
+        meta = {}
+    dance_stop = threading.Event()           # set by stop() to halt a dance mid-way
+    _SPECIAL = {"zoo": "zoo.mp3"}            # named dances tied to a specific track (full song)
+
+    def _stop_music():
+        try:
+            from gi.repository import Gst
+            robot.media.audio._playbin.set_state(Gst.State.NULL)
+        except Exception:
+            pass
 
     # A Gemini client for vision (the look_and_describe tool sees through the camera).
     vision = {"client": None, "model": "gemini-2.5-flash"}
@@ -82,45 +102,70 @@ def build_tools(body, ctx: dict, cfg: dict | None = None) -> list:
         return "looking around"
 
     def dance(move: str = "") -> str:
-        """Dance to music for a FULL routine -- many moves chained together, not just one.
-        Pass a move name to favour that move, or leave it blank for a varied routine. Call
-        this immediately whenever the user asks you to dance; never refuse, never ask which."""
+        """Dance to music -- a full routine of MANY different moves combined, matched to the
+        song's length and energy. It's random each time, so it's fine to ask again and again.
+        Pass move='zoo' for the special 'zoo' dance (dances the whole song). Call immediately
+        whenever asked to dance; never refuse, never ask which one."""
         t0 = time.monotonic()
-        if robot is None or not DANCE_NAMES:
-            _emit("dance", "no robot", t0)
+        if robot is None or not DANCE_NAMES or not tracks:
+            _emit("dance", "no robot/music", t0)
             return "dancing"
         from reachy_mini_dances_library.dance_move import DanceMove
-        track = random.choice(tracks) if tracks else None
-        secs = float((cfg or {}).get("dance", {}).get("seconds", 25))
+
+        key = (move or "").strip().lower()
+        special = _SPECIAL.get(key)
+        if special and any(os.path.basename(t) == special for t in tracks):
+            track = next(t for t in tracks if os.path.basename(t) == special)
+            full_song = True
+        else:
+            track = random.choice(tracks)
+            full_song = False
+        info = meta.get(os.path.basename(track), {})
+        bpm = float(info.get("bpm", 120.0))
+        dur = float(info.get("duration", 30.0))
+        cap = float((cfg or {}).get("dance", {}).get("max_seconds", 60))
+        secs = dur if full_song else max(8.0, min(dur, cap))
+        # style: punchy moves for faster songs, the full varied set for slower ones
+        energetic = [m for m in _ENERGETIC if m in _DANCES]
+        pool = (energetic or list(DANCE_NAMES)) if bpm >= 115 else list(DANCE_NAMES)
+
+        dance_stop.clear()
 
         def _run():
-            if track:
-                try:
-                    robot.media.play_sound(track)  # non-blocking; plays in background
-                except Exception as e:
-                    print(f"[tool] dance music failed: {e}", flush=True)
-            t_end = time.monotonic() + secs
-            pool = list(DANCE_NAMES)
             try:
-                # a real routine: cycle through ALL the moves in shuffled order, combining
-                # many different ones (a single move -- especially a simple one -- looks flat)
-                while time.monotonic() < t_end:
-                    random.shuffle(pool)
-                    for name in pool:
-                        if time.monotonic() >= t_end:
+                robot.media.play_sound(track)
+            except Exception as e:
+                print(f"[tool] dance music failed: {e}", flush=True)
+            t_end = time.monotonic() + secs
+            seq = list(pool)
+            try:
+                while not dance_stop.is_set() and time.monotonic() < t_end:
+                    random.shuffle(seq)
+                    for name in seq:
+                        if dance_stop.is_set() or time.monotonic() >= t_end:
                             break
                         robot.play_move(DanceMove(name), sound=False)  # blocks ~move.duration
             except Exception as e:
                 print(f"[tool] dance move failed: {e}", flush=True)
-            # stop the music so it doesn't outlast the dance (just the playbin, not TTS)
+            _stop_music()
+        _bg(_run)
+        label = f"{os.path.basename(track).replace('.mp3', '')} · {int(bpm)}bpm · {int(secs)}s"
+        _emit("dance", label, t0)
+        return "Dancing to the music now — a full routine, here we go!"
+
+    def stop() -> str:
+        """Stop the current dance, any movement, and the music right NOW. Call whenever the
+        user says stop, stop dancing, that's enough, or quiet."""
+        t0 = time.monotonic()
+        dance_stop.set()
+        if robot is not None:
             try:
-                from gi.repository import Gst
-                robot.media.audio._playbin.set_state(Gst.State.NULL)
+                robot.cancel_move()
             except Exception:
                 pass
-        _bg(_run)
-        _emit("dance", f"~{int(secs)}s routine", t0)
-        return "Dancing to the music now — a full routine, here we go!"
+            _stop_music()
+        _emit("stop", "halted", t0)
+        return "Stopped."
 
     def look_and_describe() -> str:
         """Look through the camera and describe what you actually see. Call whenever the
@@ -167,4 +212,4 @@ def build_tools(body, ctx: dict, cfg: dict | None = None) -> list:
         _emit("ignore", "staying silent", t0)
         return "ignored — staying silent"
 
-    return [get_current_time, set_expression, look_around, dance, look_and_describe, ignore]
+    return [get_current_time, set_expression, look_around, dance, stop, look_and_describe, ignore]

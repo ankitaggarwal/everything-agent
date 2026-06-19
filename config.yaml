@@ -34,9 +34,10 @@ cartesia:
   voice_id: "ef191366-f52f-447a-a398-ed8c0f2943a1"  # Archie - Approachable Mate
   language: "en"
 
-# Dancing: how long a full dance routine runs (it cycles many moves to the music).
+# Dancing: a normal dance matches the song length, capped here; the 'zoo' special
+# dance plays its whole song. It cycles many moves, styled to the track's BPM.
 dance:
-  seconds: 25
+  max_seconds: 60
 
 # Where the voice goes in and comes out.
 #   local  -> this laptop's mic + speakers (sounddevice), no robot motion. For dev.
