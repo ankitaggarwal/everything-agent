@@ -253,14 +253,18 @@ function setVisualsForScenario(){
 // per-frame visuals for a given phase -- shared by the canned demo AND live mode
 function applyPhaseVisuals(phase){
   spawnAcc++;
+  // In LIVE mode the You->Mic->Gemini flow only animates when you ACTUALLY speak
+  // (a real 'hearing' event). Idle 'listening' is quiet -- mic armed, nothing flowing.
+  // The canned demo keeps the old behaviour (listening shows the flow as illustration).
+  const youTalking = phase==='hearing' || (phase==='listening' && !live);
   if(spawnAcc%5===0){
-    if(['listening','hearing'].includes(phase)){spawn(P.voice,getCss('--mic'));spawn(P.up,getCss('--mic'));}
+    if(youTalking){spawn(P.voice,getCss('--mic'));spawn(P.up,getCss('--mic'));}
     if(phase==='toolcall')spawn(P.toolO,getCss('--tool'));
     if(phase==='toolret') spawn(P.toolI,getCss('--tool'));
     if(phase==='speaking'){spawn(P.down,getCss('--aud'));spawn(P.hear,getCss('--aud'));}
     if(phase==='interrupt')spawn(P.barge,getCss('--red'));
   }
-  active('you',['listening','hearing','interrupt'].includes(phase));
+  active('you',youTalking||phase==='interrupt');
   active('mic',['listening','hearing'].includes(phase));
   active('tool',['toolcall','toolret'].includes(phase));
   active('spk',phase==='speaking');
@@ -342,14 +346,28 @@ function esc(s){return (s+'').replace(/&/g,'&amp;').replace(/</g,'&lt;')}
 
 function enterLive(){
   live=true; playing=false;
-  const play=document.getElementById('play');
-  play.disabled=true; play.textContent='● LIVE'; play.style.opacity=.6;
-  document.querySelectorAll('#scenario button,#reset').forEach(b=>{b.disabled=true;b.style.opacity=.45;});
+  // Live debug view: the demo controls (play / reset / scenario picker) are meaningless
+  // when wired to the real robot -- hide them, and show ONE status pill that follows the
+  // real path. The legend (colour key) stays; it's useful while debugging.
+  ['play','reset','scenario'].forEach(id=>{const e=document.getElementById(id); if(e)e.style.display='none';});
   document.querySelector('.sub').innerHTML=
-    '<b style="color:var(--aud)">● LIVE</b> — wired to Reachy. The flow below is the robot’s real '+
-    'listening &amp; speaking, stamped to the millisecond.';
-  con.innerHTML=''; clock=0; livePhase='';
+    '<b style="color:var(--aud)">● LIVE</b> — wired to Reachy. Each block lights up from the robot’s '+
+    'real audio, stamped to the millisecond. Speak to it and watch the path follow.';
+  if(!document.getElementById('livePill')){
+    const pill=document.createElement('div'); pill.id='livePill';
+    pill.style.cssText='padding:9px 16px;border-radius:10px;border:1px solid var(--dim);'+
+      'font-weight:600;font-size:14px;pointer-events:none;min-width:165px;text-align:center;background:#0e1422';
+    document.querySelector('.controls').prepend(pill);
+  }
+  con.innerHTML=''; clock=0; livePhase=''; setLivePill('idle');
   requestAnimationFrame(liveTick);
+}
+function setLivePill(state){
+  const el=document.getElementById('livePill'); if(!el)return;
+  const M={idle:['● waiting for you','var(--dim)'], hearing:['👂 hearing you','var(--mic)'],
+    thinking:['🧠 thinking','#9b8cff'], speaking:['🔊 speaking','var(--aud)'],
+    interrupt:['✋ interrupted','var(--red)'], down:['⚠ disconnected','var(--red)']};
+  const [t,c]=M[state]||M.idle; el.textContent=t; el.style.color=c; el.style.borderColor=c;
 }
 function liveTick(){
   if(!live)return;
@@ -382,7 +400,10 @@ function onLiveEvent(ev, isReplay){
   // replayed history populates the console + timing, but doesn't drive live motion
   if(!isReplay){
     if(phase) livePhase=phase;
-    if(ev.stage==='done'){ setTimeout(()=>{ if(live) livePhase='listening'; }, 600); }
+    const PILL={hearing:'hearing',thinking:'thinking',toolcall:'thinking',speaking:'speaking',
+      interrupt:'interrupt',listening:'idle'};
+    if(phase && PILL[phase]) setLivePill(PILL[phase]);
+    if(ev.stage==='done'){ setTimeout(()=>{ if(live){ livePhase='listening'; setLivePill('idle'); } }, 600); }
   }
   liveLog(ev.stage, ev.text, dms, extra);
 }
@@ -390,9 +411,10 @@ function onLiveEvent(ev, isReplay){
   if(typeof EventSource==='undefined') return;            // file:// or old browser -> demo
   try{
     const es=new EventSource('/events');
-    es.onopen=()=>{ if(!live) enterLive(); };
+    es.onopen=()=>{ if(!live) enterLive(); else setLivePill('idle'); };  // reconnected -> clear the warning
     es.onmessage=(e)=>{ try{ onLiveEvent(JSON.parse(e.data), false); }catch(_){} };
     es.addEventListener('replay', (e)=>{ try{ onLiveEvent(JSON.parse(e.data), true); }catch(_){} });
+    es.onerror=()=>{ if(live) setLivePill('down'); };  // stream dropped: frozen != idle
     // onerror with no prior open just leaves us in canned demo mode
   }catch(_){}
 })();
