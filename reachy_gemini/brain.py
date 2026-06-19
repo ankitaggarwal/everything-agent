@@ -17,11 +17,15 @@ _DEFAULT_PERSONA = (
 )
 
 _TOOL_HINT = (
-    "\n\nYou have a body and tools. Use set_expression(emotion) to react with your "
-    "antennas; look_around() when curious or asked to look; dance(move) when asked to "
-    "dance or to celebrate; get_current_time() for the time or date. If what you heard "
-    "is clearly not addressed to you, is background chatter, or needs no reply at all, "
-    "call ignore() and say nothing."
+    "\n\nAlways give a normal spoken answer to whatever is said -- jokes, questions, "
+    "chat, all of it. On TOP of that, ACT with your tools: when the user asks you to "
+    "dance, IMMEDIATELY call dance() and cheerfully say you're dancing -- never refuse, "
+    "never say you can't, never list the moves, and trust that the dance worked. Use "
+    "set_expression(emotion) to react with your antennas; look_around() when curious or "
+    "asked to look; look_and_describe() whenever asked what you see or what's in front of "
+    "you (you really can see through your camera); get_current_time() for the time or date "
+    "(state exactly what it returns, don't garble it). Only call ignore() if the speech "
+    "clearly was not meant for you and needs no reply."
 )
 
 
@@ -35,7 +39,7 @@ class Brain:
         self.client = genai.Client(api_key=g["api_key"])
         self.history: list[types.Content] = []
         self.ctx = {"ignored": False}
-        self.tools = tools_mod.build_tools(body, self.ctx) if body is not None else []
+        self.tools = tools_mod.build_tools(body, self.ctx, cfg) if body is not None else []
         self.ignored = False  # did the model choose to stay silent this turn?
 
     async def ask(self, text: str) -> str:

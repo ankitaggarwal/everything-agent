@@ -1,15 +1,18 @@
 """The brain's tools (function calls).
 
 Each tool is a plain Python callable that the Gemini SDK auto-executes. Every
-tool emits a `tool` event so the diagram shows the call happening (with its
-timing), and any robot motion runs in a background thread so it never blocks the
-voice loop. The `ignore` tool flips a flag on the shared ctx so the agent stays
-completely silent for that turn.
+tool emits a `tool` event so the diagram shows the call happening (with timing),
+and any robot motion runs in a background thread so it never blocks the voice
+loop. The `ignore` tool flips a flag on the shared ctx so the agent stays silent.
 """
 from __future__ import annotations
 
+import glob
+import io
+import random
 import threading
 import time
+from pathlib import Path
 
 from . import events, expressions
 
@@ -19,6 +22,8 @@ try:
     DANCE_NAMES = sorted(_DANCES)
 except Exception:  # library missing (laptop/mock)
     _DANCES, DANCE_NAMES = {}, []
+
+_MUSIC_DIR = Path(__file__).resolve().parent.parent / "music"
 
 
 def _emit(name: str, detail: str, t0: float) -> None:
@@ -30,9 +35,21 @@ def _bg(fn) -> None:
     threading.Thread(target=fn, daemon=True).start()
 
 
-def build_tools(body, ctx: dict) -> list:
-    """Return the list of tool callables, closing over the robot body + shared ctx."""
+def build_tools(body, ctx: dict, cfg: dict | None = None) -> list:
+    """Return the tool callables, closing over the robot body, shared ctx, and config."""
     robot = getattr(body, "robot", None)
+    tracks = sorted(glob.glob(str(_MUSIC_DIR / "*.mp3")))
+
+    # A Gemini client for vision (the look_and_describe tool sees through the camera).
+    vision = {"client": None, "model": "gemini-2.5-flash"}
+    if cfg:
+        try:
+            from google import genai
+            g = cfg.get("gemini", {})
+            vision["client"] = genai.Client(api_key=g["api_key"])
+            vision["model"] = g.get("model", "gemini-2.5-flash")
+        except Exception:
+            pass
 
     def get_current_time() -> str:
         """Get the current local date and time. Call whenever the user asks the time or date."""
@@ -58,32 +75,77 @@ def build_tools(body, ctx: dict) -> list:
                     for yaw in (0.6, -0.6, 0.0):
                         robot.goto_target(body_yaw=float(yaw), duration=0.8)
                         time.sleep(0.85)
-                except Exception:
-                    pass
+                except Exception as e:
+                    print(f"[tool] look_around failed: {e}", flush=True)
             _bg(_run)
         _emit("look_around", "", t0)
         return "looking around"
 
-    def dance(move: str) -> str:
-        """Make the robot perform a named dance move. Use when asked to dance or to celebrate."""
+    def dance(move: str = "") -> str:
+        """Make the robot dance right now, WITH music. Pass a move name or leave it blank
+        for a fun random one. Call this immediately whenever the user asks you to dance --
+        never ask which move, never say you can't; just pick one and dance."""
         t0 = time.monotonic()
         name = (move or "").strip().lower()
-        if name not in _DANCES and DANCE_NAMES:
-            name = "simple_nod" if "simple_nod" in _DANCES else DANCE_NAMES[0]
+        if name not in _DANCES:
+            name = random.choice(DANCE_NAMES) if DANCE_NAMES else ""
+        ok = False
         if robot is not None and name in _DANCES:
             from reachy_mini_dances_library.dance_move import DanceMove
-            def _run():
-                try:
-                    robot.play_move(DanceMove(name))
-                except Exception:
-                    pass
-            _bg(_run)
-        _emit("dance", name, t0)
-        return f"dancing {name}"
+            track = random.choice(tracks) if tracks else None
 
-    if DANCE_NAMES:
-        dance.__doc__ = ("Make the robot perform a dance move. `move` must be one of: "
-                         + ", ".join(DANCE_NAMES) + ". Use when asked to dance or to celebrate.")
+            def _run():
+                if track:
+                    try:
+                        robot.media.play_sound(track)  # non-blocking; plays in background
+                    except Exception as e:
+                        print(f"[tool] dance music failed: {e}", flush=True)
+                try:
+                    robot.play_move(DanceMove(name), sound=False)
+                except Exception as e:
+                    print(f"[tool] dance({name}) play_move failed: {e}", flush=True)
+            _bg(_run)
+            ok = True
+        _emit("dance", name, t0)
+        pretty = name.replace("_", " ")
+        return f"Started the {pretty} dance with music — dancing now!" if ok else f"dancing {pretty}"
+
+    def look_and_describe() -> str:
+        """Look through the camera and describe what you actually see. Call whenever the
+        user asks what you see, what's in front of you, what something is, or to look at
+        something."""
+        t0 = time.monotonic()
+        client = vision["client"]
+        if robot is None or client is None:
+            _emit("look_and_describe", "no camera", t0)
+            return "I can't see anything right now."
+        try:
+            frame = robot.media.get_frame()
+            if frame is None:
+                _emit("look_and_describe", "no frame", t0)
+                return "My camera didn't give me an image."
+            import numpy as np
+            from PIL import Image
+            from google.genai import types as gt
+            rgb = np.ascontiguousarray(frame[:, :, ::-1])  # BGR -> RGB
+            buf = io.BytesIO()
+            Image.fromarray(rgb).save(buf, format="JPEG", quality=80)
+            resp = client.models.generate_content(
+                model=vision["model"],
+                contents=[
+                    gt.Part(inline_data=gt.Blob(mime_type="image/jpeg", data=buf.getvalue())),
+                    gt.Part(text="In one short, friendly sentence, say what you see in front of you."),
+                ],
+                config=gt.GenerateContentConfig(
+                    thinking_config=gt.ThinkingConfig(thinking_budget=0), max_output_tokens=80),
+            )
+            desc = (resp.text or "").strip()
+            _emit("look_and_describe", desc[:40] or "saw something", t0)
+            return desc or "I see something but can't quite make it out."
+        except Exception as e:
+            print(f"[tool] look_and_describe failed: {e}", flush=True)
+            _emit("look_and_describe", "error", t0)
+            return "I had trouble seeing just now."
 
     def ignore() -> str:
         """Stay completely silent and do NOT respond. Call this when the speech was clearly
@@ -93,4 +155,4 @@ def build_tools(body, ctx: dict) -> list:
         _emit("ignore", "staying silent", t0)
         return "ignored — staying silent"
 
-    return [get_current_time, set_expression, look_around, dance, ignore]
+    return [get_current_time, set_expression, look_around, dance, look_and_describe, ignore]

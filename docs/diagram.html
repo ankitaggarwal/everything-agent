@@ -310,22 +310,40 @@
     text-transform: uppercase;
     letter-spacing: 0.5px;
   }
-  .tools-list { display: flex; flex-wrap: wrap; gap: 8px; }
-  .tool-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 6px 12px;
-    border-radius: 16px;
-    background: #fef3c7;
-    border: 1px solid #f0c000;
-    font-family: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
-    font-size: 13px;
-    color: #1a1a1a;
+  .tools-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px;
+  }
+  .tool-card {
+    padding: 10px 12px;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    background: #fafafa;
+    opacity: 0.55;
+    transition: all 0.15s ease;
+  }
+  .tool-card.active {
+    opacity: 1;
+    border-color: #f0c000;
+    background: #fffbeb;
+    box-shadow: 0 0 0 2px rgba(240, 192, 0, 0.25);
     animation: toolpop 0.25s ease;
   }
-  .tool-badge .tms { color: #92740a; font-size: 11px; }
-  @keyframes toolpop { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  .tool-card .tname {
+    font-family: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+    font-size: 13px;
+    font-weight: 600;
+    color: #333;
+  }
+  .tool-card .tresp {
+    margin-top: 6px;
+    font-size: 12px;
+    color: #999;
+    word-break: break-word;
+  }
+  .tool-card.active .tresp { color: #92740a; }
+  @keyframes toolpop { from { transform: scale(0.95); } to { transform: scale(1); } }
 </style>
 </head>
 <body>
@@ -388,9 +406,16 @@
   </div>
 
   <!-- Tool calls -->
-  <div class="tools-section" id="toolsSection" style="display:none">
-    <h2>🔧 Tool calls this turn</h2>
-    <div id="toolsList" class="tools-list"></div>
+  <div class="tools-section" id="toolsSection">
+    <h2>🔧 Tools — light up + show their response when called</h2>
+    <div class="tools-grid">
+      <div class="tool-card" data-tool="get_current_time"><div class="tname">🕐 get_current_time</div><div class="tresp">—</div></div>
+      <div class="tool-card" data-tool="set_expression"><div class="tname">😊 set_expression</div><div class="tresp">—</div></div>
+      <div class="tool-card" data-tool="look_around"><div class="tname">👀 look_around</div><div class="tresp">—</div></div>
+      <div class="tool-card" data-tool="look_and_describe"><div class="tname">👁️ look_and_describe</div><div class="tresp">—</div></div>
+      <div class="tool-card" data-tool="dance"><div class="tname">💃 dance</div><div class="tresp">—</div></div>
+      <div class="tool-card" data-tool="ignore"><div class="tname">🙊 ignore</div><div class="tresp">—</div></div>
+    </div>
   </div>
 
   <!-- Event log -->
@@ -622,23 +647,24 @@ function onLiveEvent(eventData, isReplay) {
         el.textContent = '—'; el.classList.remove('value');
       }
     });
-    const tl = document.getElementById('toolsList');
-    if (tl) tl.innerHTML = '';
-    const ts = document.getElementById('toolsSection');
-    if (ts) ts.style.display = 'none';
+    document.querySelectorAll('.tool-card').forEach(c => {
+      c.classList.remove('active');
+      const r = c.querySelector('.tresp'); if (r) r.textContent = '—';
+    });
   }
 
-  // A tool call fired -> show it as a badge (the user wants function calls visible).
+  // A tool call fired -> highlight that tool card and show its response + timing.
   if (stage === 'tool') {
-    const ts = document.getElementById('toolsSection');
-    const tl = document.getElementById('toolsList');
-    if (ts && tl) {
-      ts.style.display = '';
-      const b = document.createElement('span');
-      b.className = 'tool-badge';
-      b.innerHTML = `🔧 ${formatText(text)}` +
-        (typeof ms === 'number' ? ` <span class="tms">${ms} ms</span>` : '');
-      tl.appendChild(b);
+    const name = (text + '').split('(')[0].trim();
+    const card = document.querySelector(`.tool-card[data-tool="${name}"]`);
+    if (card) {
+      card.classList.add('active');
+      const r = card.querySelector('.tresp');
+      if (r) {
+        const li = text.indexOf('('), ri = text.lastIndexOf(')');
+        const detail = (li >= 0 && ri > li) ? text.slice(li + 1, ri) : '';
+        r.textContent = (detail || '(called)') + (typeof ms === 'number' ? `  ·  ${ms} ms` : '');
+      }
     }
   }
 
