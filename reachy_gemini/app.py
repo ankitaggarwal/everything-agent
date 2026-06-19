@@ -36,6 +36,7 @@ class Agent:
         self._stt_model = c.get("stt_model", "ink-whisper")
         self._tts_model = c.get("tts_model", "sonic-2")
         self._voice_id = c.get("voice_id", "")
+        self._stt_backend = c.get("stt_backend", "gemini")  # gemini (better) | cartesia (faster)
 
     # --- the pipeline ------------------------------------------------------ #
     async def _greet(self) -> None:
@@ -60,8 +61,14 @@ class Agent:
         preroll = collections.deque(maxlen=int(vad.get("preroll_chunks", 6)))
 
         events.emit(events.LISTENING, text="say something…")
-        async with stt.open_stream(api_key=self._cart["api_key"], model=self._stt_model,
-                                   language=self._cart["language"]) as stream:
+        # Cartesia backend streams live (fast); Gemini backend buffers + transcribes
+        # the whole utterance (slower but much better, esp. accents).
+        use_cartesia = self._stt_backend == "cartesia"
+        buf = bytearray()
+        cm = stt.open_stream(api_key=self._cart["api_key"], model=self._stt_model,
+                             language=self._cart["language"]) if use_cartesia else None
+        stream = await cm.__aenter__() if cm else None
+        try:
             open_gate = False
             last_voice = 0.0
             while not (stop_event is not None and stop_event.is_set()):
@@ -77,20 +84,31 @@ class Agent:
                         open_gate = True
                         events.emit(events.HEARING, text="● mic picked up your voice")
                         for c in preroll:        # un-clip the onset
-                            await stream.push(c)
+                            buf.extend(c)
+                            if stream:
+                                await stream.push(c)
                         preroll.clear()
-                        await stream.push(pcm)
+                        buf.extend(pcm)
+                        if stream:
+                            await stream.push(pcm)
                         last_voice = now
                     else:
                         preroll.append(pcm)
                 else:
-                    await stream.push(pcm)       # stream live while you talk
+                    buf.extend(pcm)
+                    if stream:
+                        await stream.push(pcm)   # stream live while you talk
                     if peak >= stop_thr:
                         last_voice = now
                     elif now - last_voice > hang_s:
                         t_end = time.monotonic()  # you stopped talking
-                        events.emit(events.TRANSCRIBING, text="Cartesia STT (finalize)…")
-                        text = await stream.finalize()
+                        events.emit(events.TRANSCRIBING,
+                                    text="Gemini STT…" if not stream else "Cartesia STT…")
+                        if stream:
+                            text = await stream.finalize()
+                        else:
+                            text = await stt.transcribe_gemini(
+                                bytes(buf), client=self.brain.client, model=self.brain.model)
                         t_stt = time.monotonic()
                         if not text:
                             events.emit(events.ERROR, text="couldn't transcribe that",
@@ -98,6 +116,9 @@ class Agent:
                             return None, None
                         events.emit(events.TRANSCRIBED, text=text, ms=_ms(t_end, t_stt))
                         return text, t_end
+        finally:
+            if cm:
+                await cm.__aexit__(None, None, None)
         return None, None
 
     async def _respond(self, text: str, t_end: float) -> None:

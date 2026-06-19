@@ -29,6 +29,9 @@ gemini:
 # (gitignored) or the CARTESIA_API_KEY env var, never here.
 cartesia:
   api_key: ""              # leave blank -> config.local.yaml or $CARTESIA_API_KEY
+  # STT backend: "gemini" = transcribe with Gemini (much better, esp. accents; ~1s);
+  #              "cartesia" = ink-whisper streaming (fast ~30ms but lower accuracy).
+  stt_backend: "gemini"
   stt_model: "ink-whisper"
   tts_model: "sonic-2"
   voice_id: "ef191366-f52f-447a-a398-ed8c0f2943a1"  # Archie - Approachable Mate

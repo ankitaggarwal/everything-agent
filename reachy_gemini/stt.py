@@ -32,6 +32,44 @@ def _is_noise(text: str) -> bool:
     return cleaned in _HALLUCINATIONS or len(cleaned) < 2
 
 
+def _pcm_to_wav(pcm_int16: bytes, rate: int = _SR) -> bytes:
+    import io
+    import wave
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(rate)
+        w.writeframes(pcm_int16)
+    return buf.getvalue()
+
+
+async def transcribe_gemini(audio_int16: bytes, *, client, model: str) -> str:
+    """Transcribe a buffered utterance with Gemini (multimodal) -- much better at
+    accented English than ink-whisper. Returns '' on noise/failure."""
+    if not audio_int16 or client is None:
+        return ""
+    from google.genai import types as gt
+    wav = _pcm_to_wav(audio_int16)
+    try:
+        resp = await client.aio.models.generate_content(
+            model=model,
+            contents=[
+                gt.Part(inline_data=gt.Blob(mime_type="audio/wav", data=wav)),
+                gt.Part(text="Transcribe the speech in this audio verbatim. Return ONLY the "
+                             "exact words spoken, with no commentary. If there is no clear "
+                             "speech, return nothing at all."),
+            ],
+            config=gt.GenerateContentConfig(
+                thinking_config=gt.ThinkingConfig(thinking_budget=0), max_output_tokens=200),
+        )
+        text = (resp.text or "").strip()
+    except Exception as e:
+        print(f"[stt] gemini transcribe error: {e}", flush=True)
+        return ""
+    return "" if _is_noise(text) else text
+
+
 class SttStream:
     """A live STT connection: push() audio while you speak, finalize() when done."""
 
