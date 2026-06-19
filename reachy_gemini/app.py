@@ -66,6 +66,8 @@ class Agent:
         # default; cartesia = faster, lower accuracy.
         use_cartesia = self._stt_backend == "cartesia"
         buf = bytearray()
+        voice_end = 0  # buffer length up to the last loud frame (to trim trailing silence)
+        tail = int(0.25 * 16000) * 2  # keep ~250 ms after speech, drop the rest of the hangover
         open_gate = False
         last_voice = 0.0
         while not (stop_event is not None and stop_event.is_set()):
@@ -84,22 +86,25 @@ class Agent:
                     preroll.clear()
                     buf.extend(pcm)
                     last_voice = now
+                    voice_end = len(buf)
                 else:
                     preroll.append(pcm)
             else:
                 buf.extend(pcm)
                 if peak >= stop_thr:
                     last_voice = now
+                    voice_end = len(buf)
                 elif now - last_voice > hang_s:
                     t_end = time.monotonic()  # you stopped talking
+                    audio = bytes(buf[:min(len(buf), voice_end + tail)])  # trim trailing silence
                     events.emit(events.TRANSCRIBING,
                                 text="Cartesia STT…" if use_cartesia else "Gemini STT…")
                     if use_cartesia:
-                        text = await stt.transcribe(bytes(buf), api_key=self._cart["api_key"],
+                        text = await stt.transcribe(audio, api_key=self._cart["api_key"],
                                                     model=self._stt_model,
                                                     language=self._cart["language"])
                     else:
-                        text = await stt.transcribe_gemini(bytes(buf), client=self.brain.client,
+                        text = await stt.transcribe_gemini(audio, client=self.brain.client,
                                                            model=self.brain.model)
                     t_stt = time.monotonic()
                     if not text:

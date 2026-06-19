@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 from contextlib import asynccontextmanager
 
 import numpy as np
@@ -66,6 +67,10 @@ async def transcribe_gemini(audio_int16: bytes, *, client, model: str) -> str:
         text = (resp.text or "").strip()
     except Exception as e:
         print(f"[stt] gemini transcribe error: {e}", flush=True)
+        return ""
+    # On unclear audio Gemini sometimes emits timestamps ("00:01\n00:02…") or pure
+    # digits/punctuation instead of words -- treat that as noise.
+    if not text or re.fullmatch(r"[\d:.\s\n,_-]+", text):
         return ""
     return "" if _is_noise(text) else text
 
