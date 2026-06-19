@@ -4,17 +4,30 @@
 # Anything in config.local.yaml overrides the matching key here.
 
 gemini:
-  # Realtime Live API model. Get a key at https://aistudio.google.com/apikey
-  model: "gemini-3.1-flash-live-preview"
+  # The TEXT brain only (no Gemini Live). Your transcript in -> a short reply out,
+  # via one fast generate_content call. Use the fastest flash model you have access
+  # to; gemini-2.5-flash-lite is fastest, gemini-2.5-flash is the safe default.
+  model: "gemini-2.5-flash"
   api_key: ""              # leave blank -> read from config.local.yaml or $GEMINI_API_KEY
-  voice: "Kore"            # Puck | Kore | Charon | Fenrir | Aoede | Leda | Orus | Zephyr
-  # Spoken once on startup (also an audible speaker self-test). Blank to disable.
-  greeting: "Say a brief, warm one-sentence hello as Reachy Mini, the little robot."
+  max_tokens: 200          # short spoken replies
+  history_turns: 6         # how many past turns of context to keep
+  # Spoken once on startup (an audible speaker self-test, via Cartesia TTS). Blank to disable.
+  greeting: "Hello there! I'm Reachy Mini. Say something and I'll answer."
   # Who the robot is. This is the system instruction sent to Gemini.
   persona: |
     You are Reachy Mini, a small, friendly desk robot with a round head and two
     little antennas. You are curious, warm, and concise. Keep replies short and
     spoken-natural -- a sentence or two -- since you are talking out loud.
+
+# Cartesia does the speech: Ink-Whisper STT (your voice -> text) and Sonic TTS
+# (reply text -> voice). The api_key is a SECRET -> put it in config.local.yaml
+# (gitignored) or the CARTESIA_API_KEY env var, never here.
+cartesia:
+  api_key: ""              # leave blank -> config.local.yaml or $CARTESIA_API_KEY
+  stt_model: "ink-whisper"
+  tts_model: "sonic-2"
+  voice_id: "ef191366-f52f-447a-a398-ed8c0f2943a1"  # Archie - Approachable Mate
+  language: "en"
 
 # Where the voice goes in and comes out.
 #   local  -> this laptop's mic + speakers (sounddevice), no robot motion. For dev.
@@ -27,6 +40,16 @@ audio:
   input_rate: 16000
   output_rate: 24000
   chunk_ms: 50             # how often we ship a mic chunk to Gemini
+
+# Local voice-activity gate: only stream to Gemini while you're actually talking,
+# so silence isn't billed. Levels are int16 peak amplitude (0-32767). Watch the
+# journal's "[mic] ... peak=" heartbeat to tune these to your room.
+vad:
+  start_level: 3000        # peak that OPENS the gate. Above the ~1800 ambient noise floor.
+  stop_level: 1200         # drop below this, then wait hangover_s, then close the gate
+  hangover_s: 1.0          # keep streaming this long after the last loud frame
+  echo_guard_s: 0.5        # ignore the mic this long after the robot speaks (anti-echo loop)
+  preroll_chunks: 6        # chunks (~50 ms each) buffered before onset so it isn't clipped
 
 # Live diagram: a web page that moves with what Reachy actually hears & says.
 web:

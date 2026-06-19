@@ -31,6 +31,7 @@ _started = False
 def _broadcast(stage: str, data: dict) -> None:
     """events.py listener -> fan a JSON line out to every open browser."""
     msg = json.dumps({"stage": stage, "text": data.get("text", ""),
+                      "ms": data.get("ms"),  # this stage's latency, for the profiler
                       "t": round(time.time() * 1000)})
     with _lock:
         _recent.append(msg)

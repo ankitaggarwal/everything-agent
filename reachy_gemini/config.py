@@ -40,4 +40,8 @@ def load_config(path: str | os.PathLike | None = None) -> dict:
             "or set the GEMINI_API_KEY environment variable.\n"
             "Get one at https://aistudio.google.com/apikey"
         )
+
+    cartesia = cfg.setdefault("cartesia", {})
+    if not cartesia.get("api_key"):
+        cartesia["api_key"] = os.environ.get("CARTESIA_API_KEY", "")
     return cfg

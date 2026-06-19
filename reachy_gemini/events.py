@@ -9,18 +9,20 @@ from __future__ import annotations
 from typing import Callable
 
 # Stages, in the order a turn flows through them. Mirrors docs/diagram.html.
-LISTENING = "listening"     # mic open, waiting for you
-HEARING = "hearing"         # your speech is being transcribed
-THINKING = "thinking"       # your turn ended; model is deciding
-TOOL_CALL = "tool_call"     # model asked to run a tool (action path)
-NO_TOOL = "no_tool"         # model chose to just talk -> path ends ("dies")
-SPEAKING = "speaking"       # model audio is playing back
-INTERRUPTED = "interrupted"  # you spoke over it (barge-in)
-DONE = "done"               # turn complete
+# Pipeline: you speak -> (VAD) -> Cartesia STT -> Gemini text -> Cartesia TTS -> speaker.
+LISTENING = "listening"       # mic armed, waiting for you (idle)
+HEARING = "hearing"           # local VAD opened: the mic is capturing your voice
+TRANSCRIBING = "transcribing"  # utterance sent to Cartesia STT
+TRANSCRIBED = "transcribed"   # STT returned your words as text
+THINKING = "thinking"         # your text sent to Gemini; waiting for the reply
+REPLY = "reply"               # Gemini's reply text is in
+SPEAKING = "speaking"         # Cartesia TTS audio is playing back
+DONE = "done"                 # turn complete
+ERROR = "error"               # something in the pipeline failed (debug aid)
 
 _ICONS = {
-    LISTENING: "🎙️ ", HEARING: "👂", THINKING: "🧠", TOOL_CALL: "🔧",
-    NO_TOOL: "💬", SPEAKING: "🔊", INTERRUPTED: "✋", DONE: "✓",
+    LISTENING: "🎙️ ", HEARING: "👂", TRANSCRIBING: "✍️ ", TRANSCRIBED: "📝",
+    THINKING: "🧠", REPLY: "💬", SPEAKING: "🔊", DONE: "✓", ERROR: "⚠️ ",
 }
 
 _listeners: list[Callable[[str, dict], None]] = []
