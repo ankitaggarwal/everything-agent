@@ -1,8 +1,11 @@
 """Entry point.
 
-  python -m reachy_gemini            # full-duplex voice loop (mic <-> Gemini)
-  python -m reachy_gemini --check    # no mic: send one text turn, prove the
-                                     # Gemini Live connection + key + model work
+  python -m reachy_gemini              # full-duplex voice loop (mic <-> Gemini)
+  python -m reachy_gemini --check      # no mic: send one text turn, prove the
+                                       # Gemini Live connection + key + model work
+  python -m reachy_gemini --check --speak
+                                       # same, but play the reply OUT LOUD through
+                                       # the configured body (proves audio on robot)
 """
 from __future__ import annotations
 
@@ -12,12 +15,19 @@ import sys
 from google.genai import types
 
 from .app import Agent
+from .body import make_body
 from .config import load_config
 from .session import open_session
 
 
-async def check(cfg: dict) -> int:
-    """Deterministic smoke test: text in, audio out. No hardware needed."""
+async def check(cfg: dict, speak: bool = False) -> int:
+    """Deterministic smoke test: text in, audio out. No mic needed."""
+    body = None
+    if speak:
+        body = make_body(cfg)
+        body.start()
+        print(f"Playing reply through the '{body.name}' body.", flush=True)
+
     print(f"Connecting to {cfg['gemini']['model']} ...", flush=True)
     async with open_session(cfg) as session:
         print("Connected. Sending a text turn.", flush=True)
@@ -36,8 +46,13 @@ async def check(cfg: dict) -> int:
                 for part in sc.model_turn.parts:
                     if part.inline_data and part.inline_data.data:
                         audio_bytes += len(part.inline_data.data)
+                        if body is not None:
+                            body.play(part.inline_data.data)
             if sc.turn_complete:
                 break
+        if body is not None:
+            await asyncio.sleep(4)  # let the speaker drain
+            body.stop()
     print(f"\nOK -- got {audio_bytes} bytes of audio. Model said: {said!r}")
     return 0 if audio_bytes else 1
 
@@ -45,7 +60,7 @@ async def check(cfg: dict) -> int:
 def main() -> int:
     cfg = load_config()
     if "--check" in sys.argv:
-        return asyncio.run(check(cfg))
+        return asyncio.run(check(cfg, speak="--speak" in sys.argv))
     try:
         asyncio.run(Agent(cfg).run())
     except KeyboardInterrupt:

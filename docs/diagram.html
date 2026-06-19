@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>reachy-gemini — how your voice becomes a reply</title>
+<style>
+  :root{
+    --bg:#0b0f17; --panel:#121826; --panel2:#0e1420; --line:#243044;
+    --ink:#e6edf6; --dim:#8aa0bd; --faint:#5b6e88;
+    --mic:#46b1ff; --gem:#c08bff; --aud:#37e0a6; --tool:#ffb454; --red:#ff5c7a;
+    --glow:0 0 0 1px rgba(255,255,255,.04), 0 8px 30px rgba(0,0,0,.45);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);
+    font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,sans-serif}
+  .wrap{max-width:1180px;margin:0 auto;padding:22px 20px 60px}
+  h1{font-size:20px;margin:0 0 2px;letter-spacing:.2px}
+  .sub{color:var(--dim);margin:0 0 16px;font-size:13px}
+  .mono{font-family:"SF Mono",ui-monospace,Menlo,Consolas,monospace}
+
+  .controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:0 0 14px}
+  button{font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);
+    padding:8px 14px;border-radius:9px;cursor:pointer;transition:.15s}
+  button:hover{border-color:#3a4c68;background:#16203200}
+  button.primary{background:linear-gradient(180deg,#1c2a44,#15203400);border-color:#2f4straka}
+  button.primary{background:#1b2740;border-color:#34507f}
+  .seg{display:inline-flex;background:var(--panel);border:1px solid var(--line);border-radius:9px;overflow:hidden}
+  .seg button{border:0;border-radius:0;background:transparent;padding:8px 12px;color:var(--dim)}
+  .seg button.on{background:#1b2740;color:var(--ink)}
+  .spacer{flex:1}
+  .legend{display:flex;gap:14px;color:var(--dim);font-size:12px;flex-wrap:wrap}
+  .legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:-1px}
+
+  .stageWrap{position:relative;width:100%;}
+  .stage{position:relative;width:1140px;height:560px;transform-origin:top left}
+  svg.lines{position:absolute;inset:0;width:1140px;height:560px;overflow:visible}
+
+  .node{position:absolute;width:150px;background:var(--panel);border:1px solid var(--line);
+    border-radius:14px;padding:12px;box-shadow:var(--glow);cursor:pointer;transition:.18s}
+  .node:hover{transform:translateY(-2px);border-color:#3a4c68}
+  .node .ic{font-size:22px}
+  .node .t{font-weight:600;margin:4px 0 2px;font-size:13.5px}
+  .node .d{color:var(--dim);font-size:11px;line-height:1.35}
+  .node.active{border-color:#5e7bb0;box-shadow:0 0 0 1px #5e7bb0,0 0 26px rgba(110,150,220,.35)}
+  .node.box{width:230px;height:178px;background:
+     radial-gradient(120% 120% at 50% 0%,#171f31,#0c1119);border-color:#2a3550}
+  .node.box .t{font-size:15px}
+  .node.box.thinking{border-color:var(--gem);box-shadow:0 0 0 1px var(--gem),0 0 34px rgba(192,139,255,.4)}
+  .node.dead{opacity:.4;filter:grayscale(.5)}
+  .tag{position:absolute;font-size:10.5px;color:var(--faint);background:#0c1119;border:1px dashed #33425e;
+    padding:2px 7px;border-radius:6px;white-space:nowrap}
+
+  .bars{display:flex;align-items:flex-end;gap:2px;height:20px;margin-top:6px}
+  .bars span{flex:1;background:var(--aud);height:10%;border-radius:1px;opacity:.5}
+
+  /* mini robot in speaker node */
+  .bot{position:relative;width:40px;height:34px;margin:2px auto 0}
+  .bot .head{position:absolute;left:6px;top:8px;width:28px;height:24px;border-radius:9px;background:#23304a;border:1px solid #3a4c68}
+  .bot .ant{position:absolute;top:-4px;width:2px;height:12px;background:var(--tool);transform-origin:bottom center;border-radius:2px}
+  .bot .ant.l{left:13px} .bot .ant.r{left:25px}
+  .bot .eye{position:absolute;top:18px;width:4px;height:4px;border-radius:50%;background:var(--mic)}
+  .bot .eye.l{left:13px} .bot .eye.r{left:23px}
+
+  .pathlbl{font-size:10.5px;fill:var(--faint);font-family:"SF Mono",ui-monospace,monospace}
+
+  .console{margin-top:16px;background:var(--panel2);border:1px solid var(--line);border-radius:12px;
+    padding:12px 14px;height:150px;overflow:auto}
+  .console .row{font-family:"SF Mono",ui-monospace,monospace;font-size:12.5px;color:var(--ink);
+    padding:1px 0;opacity:0;animation:fade .25s forwards}
+  .console .row .s{color:var(--dim);display:inline-block;width:120px}
+  @keyframes fade{to{opacity:1}}
+
+  .detail{margin-top:14px;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:14px 16px;min-height:80px}
+  .detail h3{margin:0 0 6px;font-size:14px}
+  .detail p{margin:0 0 8px;color:var(--dim)}
+  .detail pre{margin:0;background:#0a0e16;border:1px solid var(--line);border-radius:8px;
+    padding:10px 12px;overflow:auto;color:#cfe0f5;font-size:12px}
+  .hint{color:var(--faint);font-size:12px;margin-top:8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>reachy-gemini · how your voice becomes a reply</h1>
+  <p class="sub">A live, full-duplex round trip through the Gemini Live API. Press play, then click any block to see what it really does.</p>
+
+  <div class="controls">
+    <button id="play" class="primary">▶ Play a turn</button>
+    <button id="reset">↺ Reset</button>
+    <div class="seg" id="scenario">
+      <button data-s="talk" class="on">💬 Just talk (no tool)</button>
+      <button data-s="tool">🔧 Tool call</button>
+      <button data-s="barge">✋ Barge-in</button>
+    </div>
+    <div class="spacer"></div>
+    <div class="legend">
+      <span><i style="background:var(--mic)"></i>your audio (16 kHz)</span>
+      <span><i style="background:var(--aud)"></i>reply audio (24 kHz)</span>
+      <span><i style="background:var(--tool)"></i>tool</span>
+      <span><i style="background:var(--red)"></i>interrupt</span>
+    </div>
+  </div>
+
+  <div class="stageWrap">
+   <div class="stage" id="stage">
+    <svg class="lines" id="svg" viewBox="0 0 1140 560">
+      <!-- paths are added by JS so we can measure them -->
+    </svg>
+
+    <!-- nodes -->
+    <div class="node" id="n_you"  style="left:8px;top:240px"   data-k="you">
+      <div class="ic">🗣️</div><div class="t">You speak</div>
+      <div class="d">a question, out loud</div></div>
+
+    <div class="node" id="n_mic"  style="left:182px;top:240px" data-k="mic">
+      <div class="ic">🎙️</div><div class="t">Mic capture</div>
+      <div class="d mono">16 kHz mono PCM · 50 ms chunks</div></div>
+
+    <div class="node box" id="n_gem" style="left:440px;top:190px" data-k="gem">
+      <div class="ic">🧠</div><div class="t">Gemini Live <span class="mono" style="color:var(--faint);font-size:10px">· black box</span></div>
+      <div class="d mono" style="margin-top:4px">realtime websocket<br>gemini-3.1-flash-live-preview<br>server-side VAD decides<br>when your turn ends</div></div>
+
+    <div class="node" id="n_tool" style="left:470px;top:24px" data-k="tool">
+      <div class="ic">🔧</div><div class="t">Tool call</div>
+      <div class="d mono">function the model wants run</div></div>
+
+    <div class="node" id="n_spk" style="left:792px;top:226px" data-k="spk">
+      <div class="ic">🔊</div><div class="t">Speaker + motion</div>
+      <div class="d mono">resample 24k→16k · antennas</div>
+      <div class="bars" id="bars"></div>
+      <div class="bot" id="bot">
+        <div class="ant l" id="antL"></div><div class="ant r" id="antR"></div>
+        <div class="head"></div><div class="eye l"></div><div class="eye r"></div>
+      </div></div>
+
+    <div class="node" id="n_ear" style="left:980px;top:240px" data-k="ear">
+      <div class="ic">👂</div><div class="t">You hear it</div>
+      <div class="d">the spoken reply</div></div>
+
+    <div class="tag" id="tag_dead" style="left:455px;top:150px;display:none">✕ no tool call → turn just ends here</div>
+  </div>
+  </div>
+
+  <div class="console" id="console"></div>
+
+  <div class="detail" id="detail">
+    <h3>What am I looking at?</h3>
+    <p>This is the whole app. Your mic is streamed up to Gemini continuously (it never waits for a wake word); Gemini decides when you've stopped, thinks, and streams audio back. There are exactly two outcomes from the black box: it calls a <b>tool</b>, or it just <b>talks</b> — and with no tools wired, every turn takes the "just talk" path and ends.</p>
+    <p class="hint">Tip: switch the scenario, press play, and watch the console mirror the real events the app prints (listening, hearing, thinking, speaking…).</p>
+  </div>
+</div>
+
+<script>
+const S = document.getElementById('svg');
+const NS = 'http://www.w3.org/2000/svg';
+// node centers (in svg coords) for wiring paths
+const C = {
+  you:[83,300], mic:[257,300], gemL:[440,279], gemTop:[555,190], gemR:[670,279],
+  gemBot:[555,368], tool:[545,90], spk:[867,300], ear:[1055,300]
+};
+function path(d,color,id,dash){
+  const p=document.createElementNS(NS,'path');
+  p.setAttribute('d',d); p.setAttribute('fill','none');
+  p.setAttribute('stroke',color); p.setAttribute('stroke-width','2');
+  p.setAttribute('opacity', dash?'.5':'.85'); if(dash)p.setAttribute('stroke-dasharray','6 6');
+  p.setAttribute('id',id); S.appendChild(p); return p;
+}
+function label(x,y,t){const e=document.createElementNS(NS,'text');
+  e.setAttribute('x',x);e.setAttribute('y',y);e.setAttribute('class','pathlbl');e.textContent=t;S.appendChild(e);}
+
+// wire the pipeline
+const P = {};
+P.voice = path(`M${C.you[0]+58},${C.you[1]} L${C.mic[0]-58},${C.mic[1]}`, getCss('--mic'),'p_voice');
+P.up    = path(`M${C.mic[0]+58},${C.mic[1]} C350,300 360,279 ${C.gemL[0]},${C.gemL[1]}`, getCss('--mic'),'p_up');
+P.toolO = path(`M${C.gemTop[0]-20},${C.gemTop[1]} C520,140 520,150 ${C.tool[0]-8},${C.tool[1]+60}`, getCss('--tool'),'p_toolO');
+P.toolI = path(`M${C.tool[0]+30},${C.tool[1]+60} C600,150 600,150 ${C.gemTop[0]+20},${C.gemTop[1]}`, getCss('--tool'),'p_toolI');
+P.down  = path(`M${C.gemR[0]},${C.gemR[1]} C740,279 760,300 ${C.spk[0]-78},${C.spk[1]}`, getCss('--aud'),'p_down');
+P.hear  = path(`M${C.spk[0]+78},${C.spk[1]} L${C.ear[0]-78},${C.ear[1]}`, getCss('--aud'),'p_hear');
+P.barge = path(`M${C.ear[0]-30},${C.ear[1]+40} C780,470 600,470 ${C.gemBot[0]},${C.gemBot[1]}`, getCss('--red'),'p_barge',true);
+label(300,250,'send_realtime_input( audio/pcm;rate=16000 )');
+label(700,250,'audio + transcript stream down');
+label(470,470,'interrupted=True → clear_playback()');
+
+function getCss(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim()||'#fff'}
+
+// tokens flowing on paths
+const tokens=[];
+function spawn(p,color){
+  const c=document.createElementNS(NS,'circle');
+  c.setAttribute('r','3.4');c.setAttribute('fill',color);
+  c.setAttribute('filter','drop-shadow(0 0 4px '+color+')');S.appendChild(c);
+  tokens.push({el:c,p,len:p.getTotalLength(),t:0,sp:0.012+Math.random()*0.004});
+}
+function stepTokens(){
+  for(let i=tokens.length-1;i>=0;i--){const k=tokens[i];k.t+=k.sp;
+    if(k.t>=1){k.el.remove();tokens.splice(i,1);continue;}
+    const pt=k.p.getPointAtLength(k.t*k.len);
+    k.el.setAttribute('cx',pt.x);k.el.setAttribute('cy',pt.y);}
+}
+
+// ---- timeline / state machine ----
+const nodes={you:n('n_you'),mic:n('n_mic'),gem:n('n_gem'),tool:n('n_tool'),spk:n('n_spk'),ear:n('n_ear')};
+function n(id){return document.getElementById(id)}
+const bars=document.getElementById('bars');
+for(let i=0;i<14;i++){const s=document.createElement('span');bars.appendChild(s);}
+const con=document.getElementById('console');
+let scenario='talk', playing=false, clock=0, phase='', plan=[], lastLogged=-1, spawnAcc=0;
+
+function active(node,on){nodes[node].classList.toggle('active',on)}
+function log(stage,text){
+  const r=document.createElement('div');r.className='row';
+  r.innerHTML=`<span class="s">${stage}</span>${text?('<span>'+text+'</span>'):''}`;
+  con.appendChild(r);con.scrollTop=con.scrollExpr=con.scrollHeight;
+}
+
+// each scenario is a list of phases: {name,dur,enter()}
+function buildPlan(){
+  const sample="what's the weather in Goa?";
+  const base=[
+    {name:'listening', dur:60, log:['🎙️ listening','mic open — talk any time']},
+    {name:'hearing',   dur:120,log:['👂 hearing', '“'+sample+'”']},
+    {name:'thinking',  dur:80, log:['🧠 thinking','your turn ended (VAD)']},
+  ];
+  if(scenario==='tool'){
+    base.push({name:'toolcall',dur:90,log:['🔧 tool_call','get_weather(city="Goa")']});
+    base.push({name:'toolret', dur:70,log:['↩ tool result','27°C, clear']});
+    base.push({name:'speaking',dur:150,log:['🔊 speaking','“It’s 27 and clear in Goa.”']});
+  } else if(scenario==='barge'){
+    base.push({name:'noTool',  dur:30,log:['💬 no_tool','just answering']});
+    base.push({name:'speaking',dur:90, log:['🔊 speaking','“Sure, the weather in Goa is…”']});
+    base.push({name:'interrupt',dur:70,log:['✋ interrupted','you spoke over it → stop']});
+  } else {
+    base.push({name:'noTool',  dur:40,log:['💬 no_tool','no tool needed — the turn just ends']});
+    base.push({name:'speaking',dur:150,log:['🔊 speaking','“It’s sunny and warm in Goa.”']});
+  }
+  base.push({name:'done',dur:40,log:['✓ done','turn complete']});
+  // compute absolute start times
+  let t=0; for(const p of base){p.start=t;t+=p.dur;} base.total=t; return base;
+}
+
+function phaseAt(t){let cur=plan[0];for(const p of plan){if(t>=p.start)cur=p;}return cur;}
+
+function setVisualsForScenario(){
+  // dead tool branch styling for the "just talk" case
+  const dead = scenario==='talk';
+  document.getElementById('tag_dead').style.display = dead?'block':'none';
+  nodes.tool.classList.toggle('dead', scenario!=='tool');
+  P.toolO.style.opacity=scenario==='tool'?'.85':'.12';
+  P.toolI.style.opacity=scenario==='tool'?'.85':'.12';
+  P.barge.style.opacity=scenario==='barge'?'.8':'.15';
+}
+
+function tick(){
+  if(!playing)return;
+  clock++;
+  const ph=phaseAt(clock);
+  if(ph.name!==phase){phase=ph.name; onEnterPhase(ph);}
+  // continuous + per-phase token spawning
+  spawnAcc++;
+  if(spawnAcc%5===0){
+    if(['listening','hearing'].includes(phase)){spawn(P.voice,getCss('--mic'));spawn(P.up,getCss('--mic'));}
+    if(phase==='toolcall')spawn(P.toolO,getCss('--tool'));
+    if(phase==='toolret') spawn(P.toolI,getCss('--tool'));
+    if(phase==='speaking'){spawn(P.down,getCss('--aud'));spawn(P.hear,getCss('--aud'));}
+    if(phase==='interrupt')spawn(P.barge,getCss('--red'));
+  }
+  // node highlights
+  active('you',['listening','hearing','interrupt'].includes(phase));
+  active('mic',['listening','hearing'].includes(phase));
+  active('tool',['toolcall','toolret'].includes(phase));
+  active('spk',phase==='speaking');
+  active('ear',phase==='speaking'||phase==='done');
+  nodes.gem.classList.toggle('thinking',['thinking','toolcall','toolret'].includes(phase));
+  // speaker bars + antennas animate while speaking
+  const speaking = phase==='speaking';
+  [...bars.children].forEach(b=>b.style.height=(speaking?(15+Math.random()*85):8)+'%');
+  const a = speaking?Math.sin(clock*0.5)*22:0;
+  antL.style.transform=`rotate(${-a}deg)`; antR.style.transform=`rotate(${a}deg)`;
+
+  stepTokens();
+  if(clock>plan.total+40){ playing=false; document.getElementById('play').textContent='▶ Play a turn'; }
+  requestAnimationFrame(tick);
+}
+function onEnterPhase(ph){ if(ph.log) log(ph.log[0],ph.log[1]); }
+
+function start(){
+  reset(false);
+  plan=buildPlan(); playing=true; clock=0; phase='';
+  document.getElementById('play').textContent='⏸ Playing…';
+  requestAnimationFrame(tick);
+}
+function reset(clearLog=true){
+  playing=false; clock=0; phase='';
+  tokens.splice(0).forEach(k=>k.el.remove());
+  Object.keys(nodes).forEach(k=>active(k,false));
+  nodes.gem.classList.remove('thinking');
+  [...bars.children].forEach(b=>b.style.height='8%');
+  antL.style.transform='';antR.style.transform='';
+  if(clearLog)con.innerHTML='';
+  document.getElementById('play').textContent='▶ Play a turn';
+}
+
+document.getElementById('play').onclick=()=>{ if(playing){playing=false;document.getElementById('play').textContent='▶ Play a turn';} else start(); };
+document.getElementById('reset').onclick=()=>reset(true);
+document.querySelectorAll('#scenario button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('#scenario button').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on'); scenario=b.dataset.s; setVisualsForScenario(); reset(true);
+});
+
+// ---- click-to-explain ----
+const DOCS={
+  you:["You speak","Reachy is always listening — there's no wake word in this build. You just talk.",
+       "# nothing to call — the mic is already open"],
+  mic:["Mic capture","sounddevice grabs raw audio in tiny 50 ms chunks at 16 kHz mono. On the robot this comes from the shareable pipewire node <code>reachymini_audio_src</code>; on a laptop it's your default mic.",
+       "pcm = body.read_mic()   # 16 kHz mono int16 PCM bytes"],
+  gem:["Gemini Live — the black box","One persistent websocket. We stream your audio up as it arrives; Gemini's server-side VAD decides when you've stopped, then it 'thinks'. The only two ways out: a tool call, or spoken audio.",
+       "async with client.aio.live.connect(model, config) as session:\n    await session.send_realtime_input(\n        audio=types.Blob(data=pcm, mime_type='audio/pcm;rate=16000'))"],
+  tool:["Tool call (the action path)","If the model decides it needs to *do* something, it emits a tool_call instead of talking. You'd run the function and send the result back, and it continues. No tools are wired yet — so this branch stays dark and every turn just talks.",
+       "if msg.tool_call is not None:\n    # run the function, send result back\n    ...  # else: it just speaks → the turn ends"],
+  spk:["Speaker + motion","Gemini streams audio back at 24 kHz. We resample to the robot's 16 kHz and play it through the pipewire node <code>reachymini_audio_sink</code>. While it talks, the antennas wiggle so it feels alive.",
+       "body.play(part.inline_data.data)   # 24 kHz → resampled → speaker\nbody.set_speaking(True)             # antennas wiggle"],
+  ear:["You hear it","The reply plays out loud and the turn completes. Then we're back to listening — instantly, full-duplex, so you can even talk over it (that's barge-in).",
+       "# turn_complete → emit('done'); loop back to listening"]
+};
+document.querySelectorAll('.node').forEach(el=>el.onclick=()=>{
+  const d=DOCS[el.dataset.k]; if(!d)return;
+  document.getElementById('detail').innerHTML=
+    `<h3>${d[0]}</h3><p>${d[1]}</p><pre class="mono">${d[2].replace(/</g,'&lt;')}</pre>`;
+});
+
+// responsive scale
+function fit(){const w=document.querySelector('.stageWrap').clientWidth;
+  const s=Math.min(1,w/1140); const st=document.getElementById('stage');
+  st.style.transform=`scale(${s})`; document.querySelector('.stageWrap').style.height=(560*s)+'px';}
+addEventListener('resize',fit); fit(); setVisualsForScenario();
+</script>
+</body>
+</html>

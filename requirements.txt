@@ -1,7 +1,6 @@
-# Core (laptop + robot)
+# Core (laptop + robot). Audio I/O is sounddevice on both; the robot also has the
+# reachy_mini SDK (preinstalled in its venv) for head/antenna motion.
 google-genai>=2.8.0
 numpy>=1.26
 PyYAML>=6
-
-# Laptop body only (the robot uses the reachy_mini SDK already in its venv)
 sounddevice>=0.4.6

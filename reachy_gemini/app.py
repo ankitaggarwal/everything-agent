@@ -19,9 +19,9 @@ from .session import open_session
 
 
 class Agent:
-    def __init__(self, cfg: dict):
+    def __init__(self, cfg: dict, body=None):
         self.cfg = cfg
-        self.body = make_body(cfg)
+        self.body = body if body is not None else make_body(cfg)
         self.session = None
         self._speaking = False
         self._tool_this_turn = False
@@ -82,13 +82,25 @@ class Agent:
                 events.emit(events.DONE)
                 self._tool_this_turn = False
 
-    async def run(self) -> None:
+    async def _watch_stop(self, stop_event, tasks) -> None:
+        """Cancel the loop when an external stop_event fires (daemon app stop)."""
+        while not stop_event.is_set():
+            await asyncio.sleep(0.1)
+        self.session = None
+        for t in tasks:
+            t.cancel()
+
+    async def run(self, stop_event=None) -> None:
         self.body.start()
         events.emit(events.LISTENING, text=f"({self.body.name}) say something...")
         try:
             async with open_session(self.cfg) as session:
                 self.session = session
-                await asyncio.gather(self._capture(), self._receive())
+                tasks = [asyncio.create_task(self._capture()),
+                         asyncio.create_task(self._receive())]
+                if stop_event is not None:
+                    tasks.append(asyncio.create_task(self._watch_stop(stop_event, tasks)))
+                await asyncio.gather(*tasks, return_exceptions=True)
         finally:
             self.session = None
             self.body.stop()
