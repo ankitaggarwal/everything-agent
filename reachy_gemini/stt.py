@@ -123,6 +123,22 @@ class SttStream:
         return "" if _is_noise(text) else text
 
 
+async def transcribe(audio_int16: bytes, *, api_key: str, model: str = "ink-whisper",
+                     language: str = "en") -> str:
+    """Regular (buffered) Cartesia STT: transcribe a complete utterance at once.
+
+    Faster than Gemini STT but less accurate -- the streaming variant fragmented
+    transcripts, so we send the whole clean utterance and finalize once.
+    """
+    if not audio_int16 or not api_key:
+        return ""
+    async with open_stream(api_key=api_key, model=model, language=language) as stream:
+        step = (_SR // 10) * 2  # ~100 ms of int16 audio (2 bytes/sample)
+        for i in range(0, len(audio_int16), step):
+            await stream.push(audio_int16[i:i + step])
+        return await stream.finalize()
+
+
 @asynccontextmanager
 async def open_stream(*, api_key: str, model: str = "ink-whisper", language: str = "en"):
     """Open a live STT stream; a background task collects transcripts as audio arrives."""

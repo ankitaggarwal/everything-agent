@@ -1,7 +1,7 @@
 """The whole agent, as one simple turn-based loop.
 
-  listen  -> a local VAD gate streams your utterance to STT live as you talk
-  STT     -> Cartesia Ink-Whisper transcribes during speech; finalize when you stop
+  listen  -> a local VAD gate buffers your whole utterance from the mic
+  STT     -> transcribe it as one piece (Gemini = accurate, or Cartesia ink-whisper)
   brain   -> the fastest Gemini Flash model returns a short reply (text only)
   TTS     -> Cartesia Sonic speaks the reply through the robot
 
@@ -61,64 +61,53 @@ class Agent:
         preroll = collections.deque(maxlen=int(vad.get("preroll_chunks", 6)))
 
         events.emit(events.LISTENING, text="say something…")
-        # Cartesia backend streams live (fast); Gemini backend buffers + transcribes
-        # the whole utterance (slower but much better, esp. accents).
+        # Buffer the whole utterance, then transcribe it as one piece (regular, not
+        # streaming -- live streaming fragmented the transcript). Gemini = accurate
+        # default; cartesia = faster, lower accuracy.
         use_cartesia = self._stt_backend == "cartesia"
         buf = bytearray()
-        cm = stt.open_stream(api_key=self._cart["api_key"], model=self._stt_model,
-                             language=self._cart["language"]) if use_cartesia else None
-        stream = await cm.__aenter__() if cm else None
-        try:
-            open_gate = False
-            last_voice = 0.0
-            while not (stop_event is not None and stop_event.is_set()):
-                pcm = await loop.run_in_executor(None, self.body.read_mic)
-                if not pcm:
-                    await asyncio.sleep(0.01)
-                    continue
-                samples = np.frombuffer(pcm, dtype=np.int16)
-                peak = int(np.abs(samples).max()) if samples.size else 0
-                now = time.monotonic()
-                if not open_gate:
-                    if peak >= start_thr:
-                        open_gate = True
-                        events.emit(events.HEARING, text="● mic picked up your voice")
-                        for c in preroll:        # un-clip the onset
-                            buf.extend(c)
-                            if stream:
-                                await stream.push(c)
-                        preroll.clear()
-                        buf.extend(pcm)
-                        if stream:
-                            await stream.push(pcm)
-                        last_voice = now
-                    else:
-                        preroll.append(pcm)
-                else:
+        open_gate = False
+        last_voice = 0.0
+        while not (stop_event is not None and stop_event.is_set()):
+            pcm = await loop.run_in_executor(None, self.body.read_mic)
+            if not pcm:
+                await asyncio.sleep(0.01)
+                continue
+            samples = np.frombuffer(pcm, dtype=np.int16)
+            peak = int(np.abs(samples).max()) if samples.size else 0
+            now = time.monotonic()
+            if not open_gate:
+                if peak >= start_thr:
+                    open_gate = True
+                    events.emit(events.HEARING, text="● mic picked up your voice")
+                    buf.extend(b"".join(preroll))  # un-clip the onset
+                    preroll.clear()
                     buf.extend(pcm)
-                    if stream:
-                        await stream.push(pcm)   # stream live while you talk
-                    if peak >= stop_thr:
-                        last_voice = now
-                    elif now - last_voice > hang_s:
-                        t_end = time.monotonic()  # you stopped talking
-                        events.emit(events.TRANSCRIBING,
-                                    text="Gemini STT…" if not stream else "Cartesia STT…")
-                        if stream:
-                            text = await stream.finalize()
-                        else:
-                            text = await stt.transcribe_gemini(
-                                bytes(buf), client=self.brain.client, model=self.brain.model)
-                        t_stt = time.monotonic()
-                        if not text:
-                            events.emit(events.ERROR, text="couldn't transcribe that",
-                                        ms=_ms(t_end, t_stt))
-                            return None, None
-                        events.emit(events.TRANSCRIBED, text=text, ms=_ms(t_end, t_stt))
-                        return text, t_end
-        finally:
-            if cm:
-                await cm.__aexit__(None, None, None)
+                    last_voice = now
+                else:
+                    preroll.append(pcm)
+            else:
+                buf.extend(pcm)
+                if peak >= stop_thr:
+                    last_voice = now
+                elif now - last_voice > hang_s:
+                    t_end = time.monotonic()  # you stopped talking
+                    events.emit(events.TRANSCRIBING,
+                                text="Cartesia STT…" if use_cartesia else "Gemini STT…")
+                    if use_cartesia:
+                        text = await stt.transcribe(bytes(buf), api_key=self._cart["api_key"],
+                                                    model=self._stt_model,
+                                                    language=self._cart["language"])
+                    else:
+                        text = await stt.transcribe_gemini(bytes(buf), client=self.brain.client,
+                                                           model=self.brain.model)
+                    t_stt = time.monotonic()
+                    if not text:
+                        events.emit(events.ERROR, text="couldn't transcribe that",
+                                    ms=_ms(t_end, t_stt))
+                        return None, None
+                    events.emit(events.TRANSCRIBED, text=text, ms=_ms(t_end, t_stt))
+                    return text, t_end
         return None, None
 
     async def _respond(self, text: str, t_end: float) -> None:
