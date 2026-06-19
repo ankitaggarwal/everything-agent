@@ -1,31 +1,23 @@
 [project]
-name = "everything-agent"
+name = "reachy-gemini"
 version = "0.1.0"
-description = "An always-on, modular agent for the Reachy Mini robot."
-readme = "README.md"
+description = "A tiny full-duplex voice agent: your voice <-> Gemini Live <-> a Reachy Mini robot."
 requires-python = ">=3.10"
-license = { text = "MIT" }
 dependencies = [
-    "pyyaml>=6.0",
-    "python-dotenv>=1.0",   # loads .env (API keys)
+    "google-genai>=2.8.0",
+    "numpy>=1.26",
+    "PyYAML>=6",
 ]
 
 [project.optional-dependencies]
-# The full Tier-2 brain (MCP servers). Needs Node.js + the Claude Code CLI on PATH.
-agent = ["claude-agent-sdk>=0.1.0"]
-# LLM providers -- power the router and the `fast` tool-using brain.
-anthropic = ["anthropic>=0.40.0"]
-gemini = ["google-genai>=0.3.0"]
-# Voice + hearing (Cartesia Sonic TTS + Ink-Whisper STT) and the audio plumbing.
-cartesia = ["cartesia>=2.0.0", "numpy>=1.24", "scipy>=1.10", "websockets>=12"]
-# On-device "Hey Reachy" wake word.
-wakeword = ["openwakeword>=0.6", "onnxruntime>=1.16"]
-# Real robot hardware.
-robot = ["reachy-mini"]
+laptop = ["sounddevice>=0.4.6"]   # mic/speaker on a dev machine
 
 [project.scripts]
-everything-agent = "everything_agent.__main__:main"
+reachy-gemini = "reachy_gemini.__main__:main"
 
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["reachy_gemini"]

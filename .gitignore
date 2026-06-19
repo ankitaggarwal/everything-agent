@@ -1,7 +1,8 @@
-# Secrets -- never commit
+# Secrets -- never commit (this repo is PUBLIC)
 .env
 .env.*
 !.env.example
+config.local.yaml
 
 # Python
 __pycache__/
@@ -21,6 +22,3 @@ Thumbs.db
 CLAUDE.md
 CLAUDE.local.md
 .claude/
-
-# Local wake-word models (drop a custom hey_reachy.onnx here -- see docs/wakeword.md)
-models/

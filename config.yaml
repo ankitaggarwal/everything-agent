@@ -1,51 +1,27 @@
-# everything-agent configuration -- your control panel.
+# reachy-gemini -- configuration (TRACKED, public repo: NO secrets here)
 #
-# Every subsystem is a "port" with a chosen "backend" (adapter). Picking an
-# implementation is always the same move: set `backend:`. Everything defaults to
-# mock/simple so the robot runs with no hardware and no API keys. To see which
-# backends exist for a port, read the BACKENDS map in that port's __init__.py.
+# Secrets live in config.local.yaml (gitignored) or the GEMINI_API_KEY env var.
+# Anything in config.local.yaml overrides the matching key here.
 
-# ---- HEAR ----
-hearing:
-  wakeword:
-    backend: mock            # mock | openwakeword
-    phrase: "hey reachy"
-  stt:
-    backend: mock            # mock (you type) | whisper | parakeet | cartesia
+gemini:
+  # Realtime Live API model. Get a key at https://aistudio.google.com/apikey
+  model: "gemini-3.1-flash-live-preview"
+  api_key: ""              # leave blank -> read from config.local.yaml or $GEMINI_API_KEY
+  voice: "Kore"            # Puck | Kore | Charon | Fenrir | Aoede | Leda | Orus | Zephyr
+  # Who the robot is. This is the system instruction sent to Gemini.
+  persona: |
+    You are Reachy Mini, a small, friendly desk robot with a round head and two
+    little antennas. You are curious, warm, and concise. Keep replies short and
+    spoken-natural -- a sentence or two -- since you are talking out loud.
 
-# ---- DECIDE / ACT ----
-brain:
-  router:                    # the fast brain: instant vs escalate
-    backend: mock            # mock | anthropic | gemini
-    model: claude-haiku-4-5
-  agent:                     # the deliberate, tool-using brain
-    backend: mock            # mock | claude_sdk
-    model: claude-opus-4-8
-    mcp_servers: {}          # external tools, e.g.:
-      # telegram:
-      #   command: npx
-      #   args: ["-y", "@some/telegram-mcp-server"]
+# Where the voice goes in and comes out.
+#   local  -> this laptop's mic + speakers (sounddevice), no robot motion. For dev.
+#   reachy -> the Reachy Mini robot's mic + speaker + head/antenna motion.
+body:
+  backend: "local"         # local | reachy
 
-# ---- EXPRESS ----
-express:
-  tts:
-    backend: mock            # mock | cartesia | parakeet | elevenlabs
-
-# ---- BODY & MIND ----
-robot:
-  backend: mock              # mock | reachy_mini
-memory:
-  backend: simple            # none | simple | mem0
-  path: memory.json
-approval:
-  auto_approve: false        # true = never ask (headless only)
-
-# ---- CAPABILITIES ----
-modules:                     # which modules to load
-  - idle
-  - system_time
-
-# ---- SHARED CLIENTS ----
-providers:                   # one client, reusable across ports (e.g. Cartesia TTS+STT)
-  cartesia:
-    enabled: false           # true + CARTESIA_API_KEY to enable real TTS
+audio:
+  # The robot mic and Gemini both run at 16 kHz mono. Gemini speaks back at 24 kHz.
+  input_rate: 16000
+  output_rate: 24000
+  chunk_ms: 50             # how often we ship a mic chunk to Gemini
