@@ -6,6 +6,8 @@ the lowest latency. Keeps a little conversation history for context.
 """
 from __future__ import annotations
 
+import asyncio
+
 from google import genai
 from google.genai import types
 
@@ -49,22 +51,30 @@ class Brain:
         self.ctx["ignored"] = False
         self.ignored = False
         self.history.append(types.Content(role="user", parts=[types.Part(text=text)]))
-        try:
-            resp = await self.client.aio.models.generate_content(
-                model=self.model,
-                contents=self.history,
-                config=types.GenerateContentConfig(
-                    system_instruction=self.persona + _TOOL_HINT,
-                    thinking_config=types.ThinkingConfig(thinking_budget=0),  # thinking OFF
-                    max_output_tokens=self.max_tokens,
-                    tools=self.tools,
-                ),
-            )
-            reply = (resp.text or "").strip()
-        except Exception as e:  # don't let a brain hiccup kill the loop
-            print(f"[brain] error: {e}", flush=True)
-            self.history.pop()
-            return ""
+        reply = None
+        for attempt in range(3):
+            try:
+                resp = await self.client.aio.models.generate_content(
+                    model=self.model,
+                    contents=self.history,
+                    config=types.GenerateContentConfig(
+                        system_instruction=self.persona + _TOOL_HINT,
+                        thinking_config=types.ThinkingConfig(thinking_budget=0),  # thinking OFF
+                        max_output_tokens=self.max_tokens,
+                        tools=self.tools,
+                    ),
+                )
+                reply = (resp.text or "").strip()
+                break
+            except Exception as e:  # don't let a brain hiccup kill the loop
+                msg = str(e)
+                transient = "503" in msg or "UNAVAILABLE" in msg or "overloaded" in msg.lower()
+                if attempt < 2 and transient:
+                    await asyncio.sleep(0.6)  # Gemini briefly unavailable -> retry
+                    continue
+                print(f"[brain] error: {e}", flush=True)
+                self.history.pop()
+                return ""
 
         self.ignored = bool(self.ctx.get("ignored"))
         if self.ignored:
