@@ -38,6 +38,12 @@ class FastAgent(AgentBrain):
         self.approval = ctx.approval
         self._by_name = {a.name: a for a in self.actions}
         self._tools = self._build_tools()
+        # Anthropic's server-side web search lets the robot answer "what's
+        # happening in the world" / current facts. Haiku doesn't support the
+        # dynamic-filtering _20260209 build, so use the stable _20250305 one.
+        self.web_search = bool(cfg.get("web_search", False))
+        self._web_tool = {"type": "web_search_20250305", "name": "web_search",
+                          "max_uses": int(cfg.get("web_search_max_uses", 3))}
         self._client = None   # reused across turns (keeps the HTTP pool warm)
 
     def _get_client(self):
@@ -81,16 +87,36 @@ class FastAgent(AgentBrain):
         if memory_context:
             system += "\n\nWhat you know:\n" + memory_context
         messages = [{"role": "user", "content": text}]
+        # Local module tools + (optionally) Anthropic's server-side web search.
+        tools = self._tools + ([self._web_tool] if self.web_search else [])
         final = ""
+        web_disabled = False
 
         for _ in range(_MAX_TOOL_ROUNDS):
-            msg = await client.messages.create(
-                model=self.model, max_tokens=self.max_tokens, system=system,
-                tools=self._tools, messages=messages,
-            )
+            try:
+                msg = await client.messages.create(
+                    model=self.model, max_tokens=self.max_tokens, system=system,
+                    tools=tools, messages=messages,
+                )
+            except Exception as e:  # noqa: BLE001
+                # If the workspace rejects web_search, drop it and retry once so a
+                # bad entitlement degrades to "no live info" instead of silence.
+                if self.web_search and not web_disabled and "web_search" in str(e):
+                    log.warning("web_search rejected (%s) -- retrying without it", e)
+                    tools = self._tools
+                    web_disabled = True
+                    continue
+                raise
             text_parts = [b.text for b in msg.content if getattr(b, "type", None) == "text"]
             if text_parts:
                 final = " ".join(t for t in text_parts if t).strip()
+            # Server-side tools (web_search) hit the per-turn cap -> resume by
+            # re-sending; the server picks up where it left off.
+            if msg.stop_reason == "pause_turn":
+                messages.append({"role": "assistant", "content": msg.content})
+                continue
+            # Only CLIENT-side tool_use needs us to run something; server_tool_use
+            # (web_search) is executed by the API and returned inline.
             tool_uses = [b for b in msg.content if getattr(b, "type", None) == "tool_use"]
             if msg.stop_reason != "tool_use" or not tool_uses:
                 break
@@ -102,4 +128,8 @@ class FastAgent(AgentBrain):
                                 "content": out})
             messages.append({"role": "user", "content": results})
 
-        return final or "(done)"
+        # Never return silence: if the model produced no text (e.g. it only made
+        # tool calls, or hit the round cap), give a warm, honest fallback so the
+        # robot always says *something* back.
+        return final or ("Hmm, I'm not totally sure about that one -- "
+                         "but ask me another way and I'll give it a real go.")

@@ -41,6 +41,11 @@ class CartesiaSTT(STT):
         self.model = cfg.get("model", "ink-whisper")
         self.language = cfg.get("language", "en")
         self.timeout = float(cfg.get("timeout", 30.0))   # max seconds to wait per turn
+        # End-of-turn: keep collecting final segments until the speaker has been
+        # quiet this long. Without it we'd return on the FIRST is_final -- so
+        # "Hey Reachy, <pause> what time is it?" would be truncated to "Hey
+        # Reachy" (Ink-Whisper endpoints on the mid-sentence pause).
+        self.end_gap = float(cfg.get("end_gap", 0.8))
         self.api_key = os.environ.get("CARTESIA_API_KEY")
 
     async def listen(self) -> Optional[str]:
@@ -69,15 +74,21 @@ class CartesiaSTT(STT):
         url = (f"wss://api.cartesia.ai/stt/websocket?model={self.model}"
                f"&language={self.language}&encoding=pcm_f32le&sample_rate={_STT_SR}")
         headers = {"X-API-Key": self.api_key, "Cartesia-Version": "2024-11-13"}
-        result: dict[str, Optional[str]] = {"text": None}
+        segments: list[str] = []          # final pieces of the current utterance
+        last_final = [0.0]                # monotonic time of the most recent piece
+        done = asyncio.Event()
         deadline = time.monotonic() + self.timeout
+
+        def turn_over() -> bool:
+            # Ended once we've heard something and then gone quiet past end_gap.
+            return bool(segments) and (time.monotonic() - last_final[0]) > self.end_gap
 
         async with websockets.connect(url, additional_headers=headers,
                                       max_size=4_000_000) as ws:
             async def pump():
                 batch, n = [], 0
                 target = _STT_SR // 10  # ~100 ms chunks
-                while result["text"] is None and time.monotonic() < deadline:
+                while not done.is_set() and time.monotonic() < deadline:
                     frame = await asyncio.to_thread(media.get_audio_sample)
                     if frame is None or frame.size == 0:
                         await asyncio.sleep(0.005)
@@ -96,12 +107,15 @@ class CartesiaSTT(STT):
                         batch, n = [], 0
 
             async def consume():
-                while result["text"] is None and time.monotonic() < deadline:
+                while not done.is_set() and time.monotonic() < deadline:
                     try:
-                        msg = await asyncio.wait_for(ws.recv(), timeout=1.0)
+                        msg = await asyncio.wait_for(ws.recv(), timeout=0.3)
                     except asyncio.TimeoutError:
+                        if turn_over():           # quiet long enough -> end turn
+                            done.set()
                         continue
                     except Exception:  # noqa: BLE001
+                        done.set()
                         return
                     if isinstance(msg, bytes):
                         continue
@@ -112,8 +126,15 @@ class CartesiaSTT(STT):
                     if ev.get("type") == "transcript" and ev.get("is_final"):
                         text = (ev.get("text") or "").strip()
                         if text and not _is_noise(text):
-                            log.info("heard: %r", text)
-                            result["text"] = text
+                            log.info("heard segment: %r", text)
+                            segments.append(text)
+                            last_final[0] = time.monotonic()
+                    if turn_over():
+                        done.set()
 
             await asyncio.gather(pump(), consume())
-        return result["text"] or ""
+
+        utterance = " ".join(segments).strip()
+        if utterance:
+            log.info("heard: %r", utterance)
+        return utterance

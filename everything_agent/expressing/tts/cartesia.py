@@ -42,7 +42,7 @@ class CartesiaTTS(TTS):
         if not self.voice_id:
             log.warning("Cartesia TTS selected but no voice_id (CARTESIA_VOICE_ID)")
 
-    def speak(self, text: str) -> None:
+    def speak(self, text: str, stop=None) -> None:
         text = _clean(text)
         if not text:
             return
@@ -55,12 +55,13 @@ class CartesiaTTS(TTS):
         # speak() is called synchronously from inside the agent's running event
         # loop, so we can't asyncio.run() here. Run the streaming coroutine in a
         # worker thread with its own loop and block until the audio has played.
+        # `stop` (a threading.Event) lets a barge-in cut playback short.
         import threading
         err: dict = {}
 
         def _runner():
             try:
-                asyncio.run(self._speak(text, media))
+                asyncio.run(self._speak(text, media, stop))
             except Exception as e:  # noqa: BLE001
                 err["e"] = e
 
@@ -84,10 +85,13 @@ class CartesiaTTS(TTS):
         except Exception:  # noqa: BLE001
             pass
 
-    async def _speak(self, text: str, media) -> None:
+    async def _speak(self, text: str, media, stop=None) -> None:
         import time
         from cartesia import AsyncCartesia
         from scipy.signal import resample_poly
+
+        def stopped() -> bool:
+            return stop is not None and stop.is_set()
 
         out_sr = media.get_output_audio_samplerate()
         total_samples = 0
@@ -108,6 +112,8 @@ class CartesiaTTS(TTS):
                 )
                 await ctx.no_more_inputs()
                 async for event in ctx.receive():
+                    if stopped():          # barge-in: stop streaming/pushing audio
+                        break
                     audio = getattr(event, "audio", None) or getattr(event, "data", None)
                     if isinstance(audio, (bytes, bytearray)):
                         frame = np.frombuffer(audio, dtype=np.float32)
@@ -125,7 +131,12 @@ class CartesiaTTS(TTS):
                 await client.close()
             except Exception:  # noqa: BLE001
                 pass
-        # Let the buffered audio finish playing before we return (so the mic
-        # loop doesn't immediately transcribe the robot's own voice).
-        if total_samples:
-            await asyncio.sleep(total_samples / float(out_sr) + 0.2)
+        # Let the buffered audio finish playing before we return (so the mic loop
+        # doesn't immediately transcribe the robot's own voice) -- but bail early
+        # if a barge-in asked us to stop.
+        if total_samples and not stopped():
+            remaining = total_samples / float(out_sr) + 0.2
+            waited = 0.0
+            while waited < remaining and not stopped():
+                await asyncio.sleep(0.05)
+                waited += 0.05

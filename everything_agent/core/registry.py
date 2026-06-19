@@ -22,10 +22,16 @@ def _module_classes() -> dict:
     from ..modules.idle.idle import IdleModule
     from ..modules.system_time.system_time import SystemTimeModule
     from ..modules.emotions.emotions import EmotionsModule
+    from ..modules.weather.weather import WeatherModule
+    from ..modules.timers.timers import TimersModule
+    from ..modules.web_search.web_search import WebSearchModule
     return {
         "idle": IdleModule,
         "system_time": SystemTimeModule,
         "emotions": EmotionsModule,
+        "weather": WeatherModule,
+        "timers": TimersModule,
+        "web_search": WebSearchModule,
         # "telegram": TelegramModule,   # Phase 3 (see ROADMAP.md)
     }
 

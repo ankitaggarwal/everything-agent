@@ -53,8 +53,10 @@ class AgentBrain(abc.ABC):
 # ---- EXPRESS ----
 class TTS(abc.ABC):
     @abc.abstractmethod
-    def speak(self, text: str) -> None:
-        """Say the text aloud (and optionally move expressively)."""
+    def speak(self, text: str, stop=None) -> None:
+        """Say the text aloud (and optionally move expressively). `stop` is an
+        optional threading.Event; when set mid-speech the adapter should halt
+        playback promptly so the user can interrupt (barge-in)."""
 
 
 # ---- BODY ----

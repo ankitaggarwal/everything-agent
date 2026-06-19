@@ -5,6 +5,7 @@ from ..core.plugins import load
 
 BACKENDS = {
     "mock": "everything_agent.robot.mock:MockRobot",
+    "loopback": "everything_agent.robot.loopback:LoopbackRobot",
     "reachy_mini": "everything_agent.robot.reachy_mini:ReachyMiniRobot",
 }
 

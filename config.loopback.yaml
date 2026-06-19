@@ -1,0 +1,66 @@
+# Loopback harness config -- the full agent, real Cartesia voice, NO hardware.
+# Drives the same STT/router/brain/TTS path as the robot, but the "mic" and
+# "speaker" are in-memory buffers (robot: loopback) so a developer (or Claude)
+# can speak to it and read/hear the replies. Run via: scripts/converse.py
+#
+# Needs CARTESIA_API_KEY (+ voice id) and ANTHROPIC_API_KEY in .env.
+# NOTE: the settings webpage rewrites this file (YAML dump drops comments).
+
+hearing:
+  wakeword:
+    backend: mock            # always awake; the fed audio is the utterance
+  stt:
+    backend: cartesia
+    model: ink-whisper
+    language: en
+    timeout: 12              # finalize via endpointing on the trailing silence
+  trigger: reachy            # address gate, same as the robot profile
+
+brain:
+  router:
+    backend: anthropic
+    model: claude-haiku-4-5
+  agent:
+    backend: fast            # low-latency Haiku tool-calling
+    model: claude-haiku-4-5
+    web_search: false        # native off; use the free Tavily web_search module
+
+express:
+  tts:
+    backend: cartesia
+    model: sonic-3
+    voice_id: 65209f8e-6140-4a20-b819-3cc2e21da19b
+    language: en
+  barge_in:                  # transcript mode = echo-robust (ignores our own words)
+    enabled: true
+    mode: transcript
+    grace_ms: 300
+
+robot:
+  backend: loopback          # buffer mic + speaker -- the whole point
+
+web:
+  enabled: true
+  host: 127.0.0.1
+  port: 8081                 # laptop smoke-test port
+
+memory:
+  backend: simple
+  path: /tmp/loopback_memory.json
+
+approval:
+  auto_approve: true
+
+modules:
+  - system_time              # gives the brain real "what time is it" perception
+  - weather                  # keyless Open-Meteo
+  - timers                   # countdown timers + reminders
+  - web_search               # Tavily (free tier)
+
+weather:
+  default_location: "London"
+  units: celsius
+
+providers:
+  cartesia:
+    enabled: false

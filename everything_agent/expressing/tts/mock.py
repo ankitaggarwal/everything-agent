@@ -14,7 +14,7 @@ class MockTTS(TTS):
     def __init__(self, config, ctx):
         self.robot = ctx.robot
 
-    def speak(self, text: str) -> None:
+    def speak(self, text: str, stop=None) -> None:
         if not text:
             return
         log.info("🔊 robot says: %s", text)

@@ -32,3 +32,11 @@ class SystemTimeModule(Module):
             Action("get_time", "Get the current local time of day", get_time),
             Action("get_date", "Get today's date", get_date),
         ]
+
+    async def perceive(self) -> str:
+        # Surface the time as an always-on perception so even the instant router
+        # answers "what time is it?" correctly, instead of the Haiku reflex
+        # bluffing "I don't have the time" (it can't call the get_time tool).
+        now = datetime.now()
+        return ("The current time is " + now.strftime("%-I:%M %p")
+                + " on " + now.strftime("%A, %B %-d, %Y") + ".")
