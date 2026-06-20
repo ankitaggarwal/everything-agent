@@ -36,26 +36,40 @@ async def speak(text: str, body, *, api_key: str, model: str = "sonic-2",
     n_samples = 0
     body.set_speaking(True)
     try:
-        stream = await client.tts.bytes(  # async def -> await, then iterate the chunks
-            model_id=model,
-            transcript=text,
-            voice={"mode": "id", "id": voice_id},
-            output_format={"container": "raw", "encoding": "pcm_f32le",
-                           "sample_rate": _TTS_SR},
-            language=language,
-        )
-        async for chunk in stream:
-            if not chunk:
-                continue
-            if n_samples == 0 and on_first_audio is not None:
-                on_first_audio()
-            f32 = np.frombuffer(chunk, dtype=np.float32)
-            n_samples += f32.size
-            pcm16 = (np.clip(f32, -1.0, 1.0) * 32767).astype(np.int16).tobytes()
-            body.play(pcm16)  # expects 24 kHz int16; resamples to the speaker rate
-        # wait for the queued audio to actually play out before we return
-        if n_samples:
-            await asyncio.sleep(n_samples / _TTS_SR + 0.3)
+        # Cartesia TTS can 503 (CloudFront blips) -- NEVER let that crash the app.
+        # Retry transient errors a few times; on real failure just stay silent.
+        for attempt in range(3):
+            try:
+                stream = await client.tts.bytes(
+                    model_id=model,
+                    transcript=text,
+                    voice={"mode": "id", "id": voice_id},
+                    output_format={"container": "raw", "encoding": "pcm_f32le",
+                                   "sample_rate": _TTS_SR},
+                    language=language,
+                )
+                async for chunk in stream:
+                    if not chunk:
+                        continue
+                    if n_samples == 0 and on_first_audio is not None:
+                        on_first_audio()
+                    f32 = np.frombuffer(chunk, dtype=np.float32)
+                    n_samples += f32.size
+                    pcm16 = (np.clip(f32, -1.0, 1.0) * 32767).astype(np.int16).tobytes()
+                    body.play(pcm16)  # 24 kHz int16; resamples to the speaker rate
+                if n_samples:  # let the queued audio play out before returning
+                    await asyncio.sleep(n_samples / _TTS_SR + 0.3)
+                break
+            except Exception as e:
+                name = type(e).__name__
+                msg = str(e)
+                transient = ("503" in msg or "502" in msg or "InternalServer" in name
+                             or "ServiceUnavailable" in name or "could not be satisfied" in msg)
+                if attempt < 2 and transient and n_samples == 0:
+                    await asyncio.sleep(0.6)  # Cartesia blip -> retry
+                    continue
+                print(f"[tts] speak failed ({name}) -- staying silent this turn", flush=True)
+                break
     finally:
         body.set_speaking(False)
         try:
