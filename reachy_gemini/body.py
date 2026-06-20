@@ -226,10 +226,16 @@ class RobotMediaBody:
     def start(self) -> None:
         self.robot.media.start_recording()
         self.robot.media.start_playing()
+        # The daemon boots the motors DISABLED (limp) -> the head falls. Stiffen them
+        # first so the head holds, THEN wake up to raise it. Log failures, don't swallow.
+        try:
+            self.robot.enable_motors()
+        except Exception as e:
+            print(f"[body] enable_motors failed: {e}", flush=True)
         try:
             self.robot.wake_up()
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[body] wake_up failed: {e}", flush=True)
         # Max the speaker volume -- the daemon resets it to low on each restart.
         import subprocess
         for ctl in ("PCM", "Headset"):
