@@ -3,839 +3,1180 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>reachy-gemini · control & latency dashboard</title>
+<title>Reachy Mini · Live Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
 <style>
   * { box-sizing: border-box; }
   html, body {
     margin: 0;
-    background: #ffffff;
-    color: #1a1a1a;
-    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+    padding: 0;
+    background: #FBF9F6;
+    color: #2B2722;
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
   }
-  .container {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 24px 20px;
+
+  /* Color variables */
+  :root {
+    --amber-text: #9A6410;
+  }
+
+  /* Respect reduced motion */
+  @media (prefers-reduced-motion: reduce) {
+    * { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+  }
+
+  /* Unified shadow recipe for premium elevation */
+  .unified-shadow {
+    box-shadow: 0 2px 8px rgba(0,0,0,.06), 0 8px 24px rgba(0,0,0,.04);
+  }
+
+  /* Ambient gradient mesh — subtle warmth behind everything */
+  .ambient-mesh {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: -1;
+    background:
+      radial-gradient(ellipse at 20% 30%, rgba(255, 200, 150, 0.08) 0%, transparent 40%),
+      radial-gradient(ellipse at 80% 60%, rgba(255, 150, 120, 0.06) 0%, transparent 45%),
+      radial-gradient(ellipse at 50% 90%, rgba(200, 180, 160, 0.04) 0%, transparent 50%);
+    animation: drift 20s ease-in-out infinite;
+  }
+
+  @keyframes drift {
+    0%, 100% { transform: translate(0, 0); }
+    33% { transform: translate(-2px, 3px); }
+    66% { transform: translate(2px, -2px); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ambient-mesh {
+      animation: none;
+    }
+  }
+
+  /* Single viewport grid */
+  #viewport {
+    display: grid;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
   }
 
   /* Header */
-  h1 {
-    margin: 0 0 8px;
-    font-size: 24px;
-    font-weight: 600;
-    color: #000;
-  }
-  .header-sub {
-    margin: 0 0 24px;
-    font-size: 13px;
-    color: #666;
+  header {
     display: flex;
     align-items: center;
-    gap: 10px;
-  }
-  .status-dot {
-    display: inline-block;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: #999;
-  }
-  .status-dot.connected {
-    background: #22c55e;
-  }
-  .status-dot.disconnected {
-    background: #ef4444;
-  }
-  .status-text {
-    font-family: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
-    font-size: 12px;
+    justify-content: space-between;
+    padding: 16px 24px;
+    background: #FFFFFF;
+    border-bottom: 1px solid #ECE8E2;
+    box-shadow: 0 1px 3px rgba(0,0,0,.06);
   }
 
-  /* Latency breakdown */
-  .latency-section {
-    margin: 24px 0;
-    padding: 16px;
-    border: 1px solid #e5e5e5;
-    border-radius: 8px;
-    background: #f9f9f9;
-  }
-  .latency-section h2 {
-    margin: 0 0 12px;
-    font-size: 13px;
-    font-weight: 600;
-    color: #666;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-  }
-  .breakdown-bar {
+  .header-left {
     display: flex;
-    height: 40px;
-    border-radius: 6px;
-    overflow: hidden;
-    border: 1px solid #ddd;
-    background: #fff;
-    gap: 1px;
-    margin-bottom: 12px;
+    align-items: center;
+    gap: 12px;
   }
-  .segment {
-    flex: 1;
+
+  .robot-mark {
+    font-size: 24px;
+    line-height: 1;
+  }
+
+  .header-title {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 18px;
+    font-weight: 700;
+    margin: 0;
+    color: #2B2722;
+  }
+
+  .header-subtitle {
+    font-size: 12px;
+    color: #9A9590;
+    margin-left: 8px;
+  }
+
+  .connection-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 12px;
+    background: #ECE8E2;
+    font-size: 12px;
+    font-family: 'Space Mono', monospace;
+    color: #9A9590;
+    transition: all 0.3s ease;
+  }
+
+  .connection-pill.connected {
+    background: #E8F5E9;
+    color: #2E7D32;
+  }
+
+  .connection-pill.reconnecting {
+    background: #FFF3F3;
+    color: #C62828;
+  }
+
+  .connection-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #9A9590;
+    animation: pulse 2s infinite;
+  }
+
+  .connection-pill.connected .connection-dot {
+    background: #2E7D32;
+    animation: none;
+  }
+
+  .connection-pill.reconnecting .connection-dot {
+    background: #C62828;
+    animation: pulse-red 2s infinite;
+  }
+
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+  @keyframes pulse-red { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+
+  /* Main two-column layout */
+  .main {
+    display: grid;
+    grid-template-columns: 1.62fr 1fr;
+    gap: 20px;
+    padding: 20px 24px;
+    overflow: hidden;
+  }
+
+  /* Left column */
+  .col-left {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    overflow: hidden;
+    min-height: 0;
+  }
+
+  /* Hero state orb */
+  .hero-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 24px;
+    background: #FFFFFF;
+    border-radius: 16px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.06), 0 8px 24px rgba(0,0,0,.04);
+    min-height: 280px;
+    position: relative;
+    overflow: visible;
+  }
+
+  /* Orb aura — luxurious breathing radial-gradient glow */
+  .orb-aura {
+    position: absolute;
+    width: 300px;
+    height: 300px;
+    border-radius: 50%;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+    will-change: transform, opacity;
+    box-shadow: none;
+  }
+
+  .orb-aura.breathing {
+    animation: aura-breathe 2s ease-in-out infinite;
+    opacity: 0.5;
+  }
+
+  @keyframes aura-breathe {
+    0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.5; }
+    50% { transform: translate(-50%, -50%) scale(1.15); opacity: 0.7; }
+  }
+
+  .orb {
+    position: relative;
+    width: 160px;
+    height: 160px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #D4CEC8 0%, #B8B0A8 100%);
+    box-shadow: 0 8px 28px rgba(0,0,0,.12), inset 0 -4px 12px rgba(0,0,0,.15), inset 0 4px 8px rgba(255,255,255,.4);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 12px;
-    font-weight: 600;
-    color: #fff;
-    font-family: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
-    min-width: 60px;
+    font-size: 56px;
+    transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    z-index: 1;
+  }
+
+  /* Antenna */
+  .antenna {
+    position: absolute;
+    width: 2px;
+    height: 28px;
+    background: rgba(43, 39, 34, 0.4);
+    border-radius: 2px;
+    top: -8px;
+    transform-origin: center 80px;
+    transition: all 0.3s ease;
+  }
+
+  .antenna-left { left: 45px; }
+  .antenna-right { right: 45px; }
+
+  /* Orb aura layer — state-specific radial-gradient glows */
+  .hero-container .orb-aura.listen-pulse {
+    background: radial-gradient(circle, rgba(76, 139, 245, 0.3) 0%, transparent 65%);
+    animation: aura-listen-breathe 2s ease-in-out infinite;
+    opacity: 0.6;
+  }
+
+  @keyframes aura-listen-breathe {
+    0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.6; }
+    50% { transform: translate(-50%, -50%) scale(1.2); opacity: 0.8; }
+  }
+
+  .hero-container .orb-aura.think-pulse {
+    background: radial-gradient(circle, rgba(139, 92, 246, 0.3) 0%, transparent 65%);
+    animation: aura-think-breathe 3s ease-in-out infinite;
+    opacity: 0.55;
+  }
+
+  @keyframes aura-think-breathe {
+    0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.55; }
+    50% { transform: translate(-50%, -50%) scale(1.2); opacity: 0.75; }
+  }
+
+  .hero-container .orb-aura.speak-pulse {
+    background: radial-gradient(circle, rgba(31, 185, 154, 0.3) 0%, transparent 65%);
+    animation: aura-speak-breathe 2s ease-in-out infinite;
+    opacity: 0.6;
+  }
+
+  @keyframes aura-speak-breathe {
+    0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.6; }
+    50% { transform: translate(-50%, -50%) scale(1.2); opacity: 0.8; }
+  }
+
+  .hero-container .orb-aura.dance-pulse {
+    background: radial-gradient(circle, rgba(245, 166, 35, 0.35) 0%, transparent 65%);
+    animation: aura-dance-breathe 0.8s ease-in-out infinite;
+    opacity: 0.65;
+  }
+
+  @keyframes aura-dance-breathe {
+    0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.65; }
+    50% { transform: translate(-50%, -50%) scale(1.2); opacity: 0.85; }
+  }
+
+  /* Orb states with saturated deep→bright gradients */
+  .orb.listening {
+    background: linear-gradient(135deg, #2E5AA0 0%, #4C8BF5 100%);
+    box-shadow: 0 8px 28px rgba(76, 139, 245, 0.4), inset 0 -4px 12px rgba(0,0,0,.15), inset 0 4px 8px rgba(255,255,255,.2);
+    animation: breathe 2s ease-in-out infinite;
+  }
+
+  .orb.listening .antenna {
+    animation: antenna-perk 0.5s ease-out forwards, antenna-bob 2s ease-in-out infinite;
+  }
+
+  @keyframes breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.08); } }
+
+  @keyframes antenna-perk {
+    from { transform: rotateZ(-8deg) translateY(2px); }
+    to { transform: rotateZ(-8deg) translateY(0); }
+  }
+
+  @keyframes antenna-bob {
+    0%, 100% { transform: rotateZ(-8deg); }
+    50% { transform: rotateZ(8deg); }
+  }
+
+  .orb.thinking {
+    background: linear-gradient(135deg, #6B3FA0 0%, #8B5CF6 100%);
+    box-shadow: 0 8px 28px rgba(139, 92, 246, 0.4), inset 0 -4px 12px rgba(0,0,0,.15), inset 0 4px 8px rgba(255,255,255,.15);
+    animation: shimmer 3s ease-in-out infinite;
+  }
+
+  .orb.thinking .antenna {
+    animation: antenna-sway 3s ease-in-out infinite;
+  }
+
+  @keyframes shimmer {
+    0%, 100% { background: linear-gradient(135deg, #6B3FA0 0%, #8B5CF6 100%); }
+    50% { background: linear-gradient(135deg, #8B5CF6 0%, #A78BFA 100%); }
+  }
+
+  @keyframes antenna-sway {
+    0%, 100% { transform: rotateZ(-12deg); }
+    25% { transform: rotateZ(0deg); }
+    50% { transform: rotateZ(12deg); }
+    75% { transform: rotateZ(0deg); }
+  }
+
+  .orb.speaking {
+    background: linear-gradient(135deg, #0D7377 0%, #1FB99A 100%);
+    box-shadow: 0 8px 28px rgba(31, 185, 154, 0.4), inset 0 -4px 12px rgba(0,0,0,.15), inset 0 4px 8px rgba(255,255,255,.2);
+    animation: wave 2s ease-in-out infinite;
+  }
+
+  .orb.speaking .antenna {
+    animation: antenna-sway-speak 1.4s ease-in-out infinite;
+  }
+
+  @keyframes wave {
+    0%, 100% { background: linear-gradient(135deg, #0D7377 0%, #1FB99A 100%); }
+    50% { background: linear-gradient(135deg, #1FB99A 0%, #2DC9AA 100%); }
+  }
+
+  @keyframes antenna-sway-speak {
+    0%, 100% { transform: rotateZ(-6deg); }
+    50% { transform: rotateZ(6deg); }
+  }
+
+  .orb.dancing {
+    background: linear-gradient(135deg, #C47A1A 0%, #F5A623 100%);
+    box-shadow: 0 8px 28px rgba(245, 166, 35, 0.45), inset 0 -4px 12px rgba(0,0,0,.15), inset 0 4px 8px rgba(255,255,255,.15);
+    animation: dance-bounce 0.6s ease-in-out infinite;
+  }
+
+  .orb.dancing .antenna {
+    animation: antenna-dance 0.6s ease-in-out infinite;
+  }
+
+  @keyframes dance-bounce {
+    0%, 100% { transform: translateY(0) rotateZ(0deg); }
+    25% { transform: translateY(-8px) rotateZ(-5deg); }
+    75% { transform: translateY(-8px) rotateZ(5deg); }
+  }
+
+  @keyframes antenna-dance {
+    0%, 100% { transform: rotateZ(-12deg) translateY(0); }
+    50% { transform: rotateZ(12deg) translateY(-3px); }
+  }
+
+  .orb.idle {
+    background: linear-gradient(135deg, #D4CEC8 0%, #B8B0A8 100%);
+    box-shadow: 0 8px 28px rgba(0,0,0,.1), inset 0 -4px 12px rgba(0,0,0,.15), inset 0 4px 8px rgba(255,255,255,.3);
+  }
+
+  .orb.error {
+    background: linear-gradient(135deg, #C62828 0%, #FF5252 100%);
+    box-shadow: 0 8px 28px rgba(198, 40, 40, 0.4), inset 0 -4px 12px rgba(0,0,0,.15), inset 0 4px 8px rgba(255,255,255,.1);
+    animation: error-pulse 0.5s ease-in-out;
+  }
+
+  @keyframes error-pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+  }
+
+  .hero-label {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 36px;
+    font-weight: 800;
+    text-align: center;
+    color: #2B2722;
+    letter-spacing: -0.5px;
+    transition: color 0.4s ease, opacity 0.2s ease;
+    line-height: 1.1;
+    position: relative;
+    z-index: 1;
+  }
+
+  .orb.listening ~ .hero-label { color: #4C8BF5; }
+  .orb.thinking ~ .hero-label { color: #8B5CF6; }
+  .orb.speaking ~ .hero-label { color: #1FB99A; }
+  .orb.dancing ~ .hero-label { color: #F5A623; }
+  .orb.error ~ .hero-label { color: #C62828; }
+
+  /* Pipeline rail with flowing connectors */
+  .pipeline-rail {
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    gap: 0;
+    padding: 16px 12px;
+    background: #FFFFFF;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.06), 0 8px 24px rgba(0,0,0,.04);
     position: relative;
   }
-  .segment.stt {
-    background: linear-gradient(135deg, #3b82f6, #2563eb);
-  }
-  .segment.llm {
-    background: linear-gradient(135deg, #8b5cf6, #7c3aed);
-  }
-  .segment.tts {
-    background: linear-gradient(135deg, #ec4899, #db2777);
-  }
-  .segment.empty {
-    background: #e5e5e5;
-    color: #999;
-    font-weight: normal;
-  }
-  .latency-total {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-family: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
-    font-size: 13px;
-  }
-  .latency-total .label {
-    color: #666;
-  }
-  .latency-total .value {
-    font-size: 18px;
-    font-weight: 700;
-    color: #000;
-  }
-  .latency-idle {
-    font-size: 13px;
-    color: #999;
-    font-style: italic;
+
+  .pipeline-connector {
+    flex: 1;
+    height: 2px;
+    background: linear-gradient(90deg, #ECE8E2 0%, #E0D9D0 50%, #ECE8E2 100%);
+    position: relative;
+    margin: 0 -2px;
   }
 
-  /* Pipeline stages */
-  .stages {
-    margin: 24px 0;
-    padding: 16px;
-    border: 1px solid #e5e5e5;
-    border-radius: 8px;
-    background: #f9f9f9;
-  }
-  .stages h2 {
-    margin: 0 0 12px;
-    font-size: 13px;
-    font-weight: 600;
-    color: #666;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-  }
-  .stages-grid {
-    display: flex;
-    align-items: stretch;
-    gap: 6px;
-    flex-wrap: wrap;
-  }
-  .stages-grid .stage-box { flex: 1 1 120px; min-width: 108px; }
-  .arrow {
-    display: flex;
-    align-items: center;
-    color: #cbd5e1;
-    font-size: 22px;
-    font-weight: 700;
-    flex: 0 0 auto;
-  }
-  .stage-box {
-    padding: 12px;
-    border: 1px solid #ddd;
-    border-radius: 6px;
-    background: #fff;
-    text-align: center;
-    transition: all 0.2s ease;
-  }
-  .stage-box.active {
-    border-color: #3b82f6;
-    background: #eff6ff;
-    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
-  }
-  .stage-box .icon {
-    font-size: 20px;
-    margin-bottom: 6px;
-  }
-  .stage-box .name {
-    font-size: 12px;
-    font-weight: 500;
-    color: #333;
-    margin: 0;
-  }
-  .stage-box .latency {
-    font-size: 11px;
-    color: #999;
-    margin: 6px 0 0;
-    font-family: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
-  }
-  .stage-box .latency.value {
-    color: #666;
-    font-weight: 600;
+  .pipeline-connector.active {
+    background: linear-gradient(90deg, #4C8BF5 0%, #8B5CF6 25%, #F5A623 50%, #1FB99A 75%, #ECE8E2 100%);
   }
 
-  /* Event log */
-  .log-section {
-    margin: 24px 0;
-    padding: 16px;
-    border: 1px solid #e5e5e5;
-    border-radius: 8px;
-    background: #f9f9f9;
-  }
-  .log-section h2 {
-    margin: 0 0 12px;
-    font-size: 13px;
-    font-weight: 600;
-    color: #666;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-  }
-  .log-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-family: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
-    font-size: 12px;
-  }
-  .log-table thead {
-    border-bottom: 2px solid #ddd;
-  }
-  .log-table th {
-    text-align: left;
-    padding: 8px;
-    font-weight: 600;
-    color: #666;
-    background: #fff;
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
-  }
-  .log-table tbody tr {
-    border-bottom: 1px solid #eee;
-    transition: background-color 0.15s ease;
-  }
-  .log-table tbody tr:hover {
-    background: #f5f5f5;
-  }
-  .log-table tbody tr.replay {
-    opacity: 0.7;
-  }
-  .log-table td {
-    padding: 8px;
-    vertical-align: top;
-  }
-  .log-table .time {
-    color: #999;
-    white-space: nowrap;
-    width: 110px;
-  }
-  .log-table .delta {
-    color: #999;
-    white-space: nowrap;
-    width: 70px;
-  }
-  .log-table .stage {
-    color: #333;
-    white-space: nowrap;
-    width: 100px;
-    font-weight: 500;
-  }
-  .log-table .ms {
-    color: #666;
-    white-space: nowrap;
-    width: 70px;
-    text-align: right;
-  }
-  .log-table .text {
-    color: #333;
-    word-break: break-word;
-    max-width: 400px;
-  }
-  .log-container {
-    max-height: 400px;
-    overflow-y: auto;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    background: #fff;
-  }
-  .log-idle {
-    padding: 16px;
-    text-align: center;
-    color: #999;
-    font-style: italic;
-  }
-
-  /* Scrollbar styling */
-  .log-container::-webkit-scrollbar {
+  .pipeline-light {
+    position: absolute;
+    top: -2px;
     width: 8px;
-  }
-  .log-container::-webkit-scrollbar-track {
-    background: #f0f0f0;
-  }
-  .log-container::-webkit-scrollbar-thumb {
-    background: #ccc;
-    border-radius: 4px;
-  }
-  .log-container::-webkit-scrollbar-thumb:hover {
-    background: #999;
+    height: 8px;
+    border-radius: 50%;
+    background: #F5A623;
+    box-shadow: 0 0 12px rgba(245, 166, 35, 0.9), 0 0 20px rgba(245, 166, 35, 0.6);
+    animation: travel-light linear forwards;
   }
 
-  /* Tool calls */
-  .tools-section {
-    margin: 24px 0;
-    padding: 16px;
-    border: 1px solid #f0c000;
-    border-radius: 8px;
-    background: #fffbeb;
+  @keyframes travel-light {
+    from { left: 0; opacity: 1; }
+    to { left: 100%; opacity: 0.2; }
   }
-  .tools-section h2 {
-    margin: 0 0 12px;
-    font-size: 13px;
-    font-weight: 600;
-    color: #92740a;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-  }
-  .tools-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-    gap: 10px;
-  }
-  .tool-card {
-    padding: 10px 12px;
-    border: 1px solid #e0e0e0;
-    border-radius: 8px;
-    background: #fafafa;
-    opacity: 0.55;
-    transition: all 0.15s ease;
-  }
-  .tool-card.active {
-    opacity: 1;
-    border-color: #f0c000;
-    background: #fffbeb;
-    box-shadow: 0 0 0 2px rgba(240, 192, 0, 0.25);
-    animation: toolpop 0.25s ease;
-  }
-  .tool-card .tname {
-    font-family: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
-    font-size: 13px;
-    font-weight: 600;
-    color: #333;
-  }
-  .tool-card .tresp {
-    margin-top: 6px;
-    font-size: 12px;
-    color: #999;
-    word-break: break-word;
-  }
-  .tool-card.active .tresp { color: #92740a; }
-  @keyframes toolpop { from { transform: scale(0.95); } to { transform: scale(1); } }
 
-  /* Control panel */
-  .control-section {
-    margin: 24px 0;
-    padding: 16px;
-    border: 1px solid #e5e5e5;
-    border-radius: 8px;
-    background: #f9f9f9;
-  }
-  .control-section h2 {
-    margin: 0 0 12px;
-    font-size: 13px;
-    font-weight: 600;
-    color: #666;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-  }
-  .control-row {
+  .pipeline-node {
     display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-bottom: 12px;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: #F5F3F0;
+    transition: all 0.3s ease;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 2;
   }
-  .control-row:last-child {
-    margin-bottom: 0;
+
+  .pipeline-node.active {
+    transform: scale(1.05);
   }
-  .control-row label {
-    font-size: 11px;
-    color: #999;
+
+  .pipeline-node.active.hear {
+    background: rgba(76, 139, 245, 0.2);
+    box-shadow: 0 0 0 2px rgba(76, 139, 245, 0.3), 0 4px 12px rgba(76, 139, 245, 0.15);
+  }
+
+  .pipeline-node.active.think {
+    background: rgba(139, 92, 246, 0.2);
+    box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.3), 0 4px 12px rgba(139, 92, 246, 0.15);
+  }
+
+  .pipeline-node.active.act {
+    background: rgba(245, 166, 35, 0.2);
+    box-shadow: 0 0 0 2px rgba(245, 166, 35, 0.3), 0 4px 12px rgba(245, 166, 35, 0.15);
+  }
+
+  .pipeline-node.active.speak {
+    background: rgba(31, 185, 154, 0.2);
+    box-shadow: 0 0 0 2px rgba(31, 185, 154, 0.3), 0 4px 12px rgba(31, 185, 154, 0.15);
+  }
+
+  .pipeline-icon {
+    font-size: 16px;
+  }
+
+  .pipeline-label {
+    font-size: 12px;
     font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
-    width: 100%;
-    margin-bottom: 4px;
-  }
-  .btn {
-    padding: 8px 12px;
-    border: 1px solid #ddd;
-    border-radius: 6px;
-    background: #fff;
-    color: #333;
-    font-size: 13px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.15s ease;
+    color: #9A9590;
+    text-align: center;
     white-space: nowrap;
   }
-  .btn:hover {
-    border-color: #999;
-    background: #f5f5f5;
-  }
-  .btn:active {
-    transform: scale(0.98);
-  }
-  .btn-stop {
-    border-color: #ef4444;
-    color: #dc2626;
-    font-weight: 600;
-  }
-  .btn-stop:hover {
-    background: #fef2f2;
-    border-color: #dc2626;
-  }
-  .toast {
-    position: fixed;
-    bottom: 16px;
-    right: 16px;
-    padding: 12px 16px;
-    border-radius: 6px;
-    background: #1a1a1a;
-    color: #fff;
-    font-size: 13px;
-    font-family: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
-    box-shadow: 0 2px 12px rgba(0,0,0,0.15);
-    max-width: 300px;
-    word-break: break-word;
-    animation: toastin 0.2s ease;
-  }
-  @keyframes toastin { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 
-  /* Transcript */
-  .transcript-section {
-    margin: 24px 0;
-    padding: 16px;
-    border: 1px solid #e5e5e5;
-    border-radius: 8px;
-    background: #f9f9f9;
+  .pipeline-node.active.hear .pipeline-label { color: #4C8BF5; font-weight: 700; }
+  .pipeline-node.active.think .pipeline-label { color: #8B5CF6; font-weight: 700; }
+  .pipeline-node.active.act .pipeline-label { color: #F5A623; font-weight: 700; }
+  .pipeline-node.active.speak .pipeline-label { color: #1FB99A; font-weight: 700; }
+
+  .pipeline-latency {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: #9A9590;
+    text-align: center;
+    font-weight: 500;
   }
-  .transcript-section h2 {
-    margin: 0 0 12px;
-    font-size: 13px;
+
+  .pipeline-node.active.hear .pipeline-latency { color: #4C8BF5; font-weight: 700; }
+  .pipeline-node.active.think .pipeline-latency { color: #8B5CF6; font-weight: 700; }
+  .pipeline-node.active.act .pipeline-latency { color: var(--amber-text); font-weight: 700; }
+  .pipeline-node.active.speak .pipeline-latency { color: #1FB99A; font-weight: 700; }
+
+  /* Conversation */
+  .conversation-panel {
+    display: flex;
+    flex-direction: column;
+    background: #FFFFFF;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.06), 0 8px 24px rgba(0,0,0,.04);
+    overflow: hidden;
+    min-height: 0;
+    flex: 1;
+  }
+
+  .panel-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid #ECE8E2;
+    font-size: 12px;
     font-weight: 600;
-    color: #666;
-    text-transform: uppercase;
     letter-spacing: 0.5px;
+    color: #9A9590;
   }
-  .transcript-container {
-    max-height: 300px;
+
+  .conversation-feed {
+    flex: 1;
     overflow-y: auto;
     padding: 12px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    background: #fff;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-height: 0;
+    justify-content: flex-start;
+    scroll-behavior: smooth;
   }
-  .transcript-idle {
-    padding: 16px;
-    text-align: center;
-    color: #999;
+
+  .conversation-feed.idle {
+    justify-content: center;
+    align-items: center;
+    color: #9A9590;
     font-style: italic;
+    font-size: 13px;
   }
-  .transcript-message {
-    margin: 8px 0;
+
+  .message {
     display: flex;
     gap: 8px;
+    animation: slideIn 0.3s ease;
   }
-  .transcript-message.user {
+
+  .message.no-animate {
+    animation: none;
+  }
+
+  @keyframes slideIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+  .message.user {
     justify-content: flex-end;
   }
-  .transcript-bubble {
+
+  .bubble {
     max-width: 70%;
-    padding: 10px 12px;
+    padding: 10px 14px;
     border-radius: 12px;
     font-size: 13px;
     line-height: 1.4;
     word-break: break-word;
   }
-  .transcript-message.user .transcript-bubble {
-    background: #3b82f6;
-    color: #fff;
-  }
-  .transcript-message.robot .transcript-bubble {
-    background: #e5e5e5;
-    color: #333;
-  }
-  .transcript-chip {
-    display: inline-block;
-    padding: 4px 8px;
-    border-radius: 4px;
-    background: #fef3c7;
-    color: #92740a;
-    font-size: 12px;
-    font-family: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
-    margin: 4px 0;
-  }
-  .transcript-container::-webkit-scrollbar {
-    width: 8px;
-  }
-  .transcript-container::-webkit-scrollbar-track {
-    background: #f0f0f0;
-  }
-  .transcript-container::-webkit-scrollbar-thumb {
-    background: #ccc;
-    border-radius: 4px;
-  }
-  .transcript-container::-webkit-scrollbar-thumb:hover {
-    background: #999;
+
+  .message.user .bubble {
+    background: #FF6B5C;
+    color: #FFFFFF;
+    border-radius: 12px 4px 12px 12px;
   }
 
-  /* Latency trend */
-  .trend-section {
-    margin: 24px 0;
-    padding: 16px;
-    border: 1px solid #e5e5e5;
-    border-radius: 8px;
-    background: #f9f9f9;
+  .message.robot .bubble {
+    background: #F5F3F0;
+    color: #2B2722;
+    border-radius: 4px 12px 12px 12px;
   }
-  .trend-section h2 {
-    margin: 0 0 12px;
-    font-size: 13px;
-    font-weight: 600;
-    color: #666;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
+
+  .tool-chip {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: rgba(245, 166, 35, 0.12);
+    color: var(--amber-text);
+    font-size: 12px;
+    font-family: 'Space Mono', monospace;
+    font-weight: 500;
+    animation: slideIn 0.3s ease;
   }
-  .trend-bars {
+
+  .tool-chip.no-animate {
+    animation: none;
+  }
+
+  .ignore-chip {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: rgba(169, 169, 169, 0.12);
+    color: #6B6B6B;
+    font-size: 12px;
+    font-family: 'Space Mono', monospace;
+    font-weight: 500;
+    animation: slideIn 0.3s ease;
+  }
+
+  .ignore-chip.no-animate {
+    animation: none;
+  }
+
+  /* Scrollbar */
+  .conversation-feed::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .conversation-feed::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .conversation-feed::-webkit-scrollbar-thumb {
+    background: #ECE8E2;
+    border-radius: 3px;
+  }
+
+  .conversation-feed::-webkit-scrollbar-thumb:hover {
+    background: #D4CEC8;
+  }
+
+  /* Right column */
+  .col-right {
     display: flex;
-    align-items: flex-end;
-    gap: 4px;
-    height: 80px;
+    flex-direction: column;
+    gap: 16px;
+    overflow: hidden;
+    min-height: 0;
   }
-  .trend-bar {
+
+  /* Capabilities panel - fills the column */
+  .capabilities-panel {
+    display: flex;
+    flex-direction: column;
+    background: #FFFFFF;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.06), 0 8px 24px rgba(0,0,0,.04);
+    overflow: hidden;
     flex: 1;
-    background: linear-gradient(135deg, #3b82f6, #2563eb);
-    border-radius: 3px 3px 0 0;
+    min-height: 0;
+  }
+
+  .capabilities-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+    padding: 16px;
+    overflow-y: auto;
+    min-height: 0;
+  }
+
+  .capabilities-grid::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .capabilities-grid::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .capabilities-grid::-webkit-scrollbar-thumb {
+    background: #ECE8E2;
+    border-radius: 3px;
+  }
+
+  .capabilities-grid::-webkit-scrollbar-thumb:hover {
+    background: #D4CEC8;
+  }
+
+  .capability-card {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+    border-radius: 12px;
+    background: #F5F3F0;
+    border: 1px solid #ECE8E2;
+    transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+    cursor: pointer;
+    text-align: center;
     position: relative;
-    min-height: 4px;
+    tabindex: 0;
+  }
+
+  .capability-card:hover {
+    background: #FAFAF8;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,.08);
+  }
+
+  .capability-card:active {
+    transform: translateY(0);
+  }
+
+  .capability-card:focus-visible {
+    outline: 2px solid #4C8BF5;
+    outline-offset: 2px;
+  }
+
+  .capability-card.active {
+    background: rgba(245, 166, 35, 0.12);
+    border-color: #F5A623;
+    box-shadow: 0 0 16px rgba(245, 166, 35, 0.5), inset 0 0 8px rgba(245, 166, 35, 0.15);
+    animation: card-celebrate 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  @keyframes card-celebrate {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.08); }
+    100% { transform: scale(1); }
+  }
+
+  .capability-emoji {
+    font-size: 24px;
+    line-height: 1;
+  }
+
+  .capability-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: #2B2722;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .capability-card.active .capability-name {
+    color: #2B2722;
+    font-weight: 700;
+  }
+
+  .capability-result {
+    font-size: 11px;
+    color: #D4CEC8;
+    line-height: 1.3;
+    word-break: break-word;
+    max-height: 60px;
+    overflow-y: auto;
+    font-style: italic;
+  }
+
+  .capability-card.active .capability-result {
+    color: var(--amber-text);
+    font-weight: 500;
+    font-style: normal;
+  }
+
+  /* Sub-button containers within cards (for Dance and Express) */
+  .capability-sub-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .capability-sub-row {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .capability-btn {
+    flex: 1;
+    min-width: 50px;
+    padding: 8px 12px;
+    border: 1px solid #ECE8E2;
+    border-radius: 8px;
+    background: #FFFFFF;
+    color: #2B2722;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
     transition: all 0.2s ease;
-  }
-  .trend-bar:hover {
-    opacity: 0.8;
-  }
-  .trend-bar-label {
-    position: absolute;
-    bottom: -18px;
-    left: 50%;
-    transform: translateX(-50%);
-    font-size: 10px;
-    color: #999;
+    font-family: 'Inter', sans-serif;
     white-space: nowrap;
   }
-  .trend-idle {
-    text-align: center;
-    color: #999;
-    font-style: italic;
-    padding: 24px;
+
+  .capability-btn:hover {
+    border-color: #D4CEC8;
+    background: #F9F7F5;
+  }
+
+  .capability-btn:active {
+    transform: scale(0.95);
+    box-shadow: inset 0 2px 4px rgba(0,0,0,.1);
+  }
+
+  .capability-btn:focus-visible {
+    outline: 2px solid #4C8BF5;
+    outline-offset: 2px;
+  }
+
+  .capability-btn.stop {
+    border-color: #FF6B5C;
+    color: #FF6B5C;
+    font-weight: 600;
+  }
+
+  .capability-btn.stop:hover {
+    background: #FFF5F3;
+  }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    padding: 12px 16px;
+    border-radius: 8px;
+    background: #2B2722;
+    color: #FFFFFF;
+    font-size: 13px;
+    font-family: 'Space Mono', monospace;
+    box-shadow: 0 8px 24px rgba(0,0,0,.25);
+    max-width: 300px;
+    word-break: break-word;
+    z-index: 1000;
+    animation: none;
+  }
+
+  .toast.animate-in {
+    animation: toastIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  @keyframes toastIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+
+  .error-toast {
+    background: #C62828;
+  }
+
+  /* Scrollbar styling (general) */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #ECE8E2;
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #D4CEC8;
+  }
+
+  /* Focus visible for accessibility */
+  button:focus-visible, .capability-btn:focus-visible {
+    outline: 2px solid #4C8BF5;
+    outline-offset: 2px;
   }
 </style>
 </head>
 <body>
 
-<div class="container">
-  <h1>reachy-gemini · control & latency dashboard</h1>
-  <div class="header-sub">
-    <span class="status-dot" id="statusDot"></span>
-    <span class="status-text" id="statusText">connecting…</span>
-  </div>
+<!-- Ambient gradient mesh for premium warmth -->
+<div class="ambient-mesh"></div>
 
-  <!-- Control panel -->
-  <div class="control-section">
-    <h2>🎮 Control Panel</h2>
-    <div class="control-row">
-      <label>Dance</label>
-      <button class="btn" onclick="callTool('dance', {})">💃 Random Dance</button>
-      <button class="btn" onclick="callTool('dance', {move: 'zoo'})">🦁 Zoo / Zootopia</button>
-      <button class="btn" onclick="callTool('dance', {move: 'madagascar'})">🐵 Madagascar</button>
-      <button class="btn" onclick="callTool('dance', {move: 'mcqueen'})">🏎️ McQueen / Cars</button>
-      <button class="btn btn-stop" onclick="callTool('stop', {})">🛑 Stop</button>
+<div id="viewport">
+  <!-- Header -->
+  <header>
+    <div class="header-left">
+      <div class="robot-mark">🤖</div>
+      <h1 class="header-title">Reachy Mini <span class="header-subtitle">live</span></h1>
     </div>
-    <div class="control-row">
-      <label>Senses</label>
-      <button class="btn" onclick="callTool('look_around', {})">👀 Look Around</button>
-      <button class="btn" onclick="callTool('look_and_describe', {})">👁️ What Do You See</button>
-      <button class="btn" onclick="callTool('get_current_time', {})">🕐 Time</button>
+    <div class="connection-pill" id="connectionPill">
+      <span class="connection-dot"></span>
+      <span id="connectionText">connecting…</span>
     </div>
-    <div class="control-row">
-      <label>Expression</label>
-      <button class="btn" onclick="callTool('set_expression', {emotion: 'happy'})">😊 Happy</button>
-      <button class="btn" onclick="callTool('set_expression', {emotion: 'excited'})">🤩 Excited</button>
-      <button class="btn" onclick="callTool('set_expression', {emotion: 'sad'})">😢 Sad</button>
-      <button class="btn" onclick="callTool('set_expression', {emotion: 'curious'})">🤔 Curious</button>
-      <button class="btn" onclick="callTool('set_expression', {emotion: 'surprised'})">😮 Surprised</button>
-    </div>
-  </div>
+  </header>
 
-  <!-- Latency breakdown -->
-  <div class="latency-section">
-    <h2>Current turn latency</h2>
-    <div id="breakdownContainer">
-      <div class="latency-idle">waiting for the robot…</div>
-    </div>
-  </div>
+  <!-- Main content: two-column layout -->
+  <div class="main">
+    <!-- Left column -->
+    <div class="col-left">
+      <!-- Hero state orb -->
+      <div class="hero-container">
+        <div class="orb-aura" id="orbAura"></div>
+        <div class="orb idle" id="stateOrb">
+          <div class="antenna antenna-left"></div>
+          <div class="antenna antenna-right"></div>
+        </div>
+        <div class="hero-label" id="heroLabel">Ready when you are</div>
+      </div>
 
-  <!-- Pipeline stages -->
-  <div class="stages">
-    <h2>Pipeline stages</h2>
-    <div class="stages-grid">
-      <div class="stage-box" data-stage="listening">
-        <div class="icon">🎤</div>
-        <p class="name">Listening</p>
-        <div class="latency">idle</div>
+      <!-- Pipeline rail with flowing connectors -->
+      <div class="pipeline-rail" id="pipelineRail">
+        <div class="pipeline-node" data-stage="hear">
+          <div class="pipeline-icon">🎤</div>
+          <div class="pipeline-label">Hear</div>
+          <div class="pipeline-latency" data-latency="hear">—</div>
+        </div>
+        <div class="pipeline-connector"></div>
+        <div class="pipeline-node" data-stage="think">
+          <div class="pipeline-icon">🧠</div>
+          <div class="pipeline-label">Think</div>
+          <div class="pipeline-latency" data-latency="think">—</div>
+        </div>
+        <div class="pipeline-connector"></div>
+        <div class="pipeline-node" data-stage="act">
+          <div class="pipeline-icon">⚡</div>
+          <div class="pipeline-label">Act</div>
+          <div class="pipeline-latency" data-latency="act">—</div>
+        </div>
+        <div class="pipeline-connector"></div>
+        <div class="pipeline-node" data-stage="speak">
+          <div class="pipeline-icon">🔊</div>
+          <div class="pipeline-label">Speak</div>
+          <div class="pipeline-latency" data-latency="speak">—</div>
+        </div>
+        <div class="pipeline-connector"></div>
+        <div class="pipeline-node" data-stage="total">
+          <div class="pipeline-icon">✓</div>
+          <div class="pipeline-label">Total</div>
+          <div class="pipeline-latency" data-latency="total">—</div>
+        </div>
       </div>
-      <span class="arrow">→</span>
-      <div class="stage-box" data-stage="speak">
-        <div class="icon">👂</div>
-        <p class="name">You speak</p>
-        <div class="latency">—</div>
-      </div>
-      <span class="arrow">→</span>
-      <div class="stage-box" data-stage="stt">
-        <div class="icon">📝</div>
-        <p class="name">STT</p>
-        <div class="latency">—</div>
-      </div>
-      <span class="arrow">→</span>
-      <div class="stage-box" data-stage="llm">
-        <div class="icon">🧠</div>
-        <p class="name">LLM</p>
-        <div class="latency">—</div>
-      </div>
-      <span class="arrow">→</span>
-      <div class="stage-box" data-stage="tts">
-        <div class="icon">🔊</div>
-        <p class="name">TTS</p>
-        <div class="latency">—</div>
-      </div>
-      <span class="arrow">→</span>
-      <div class="stage-box" data-stage="total">
-        <div class="icon">🏁</div>
-        <p class="name">Total</p>
-        <div class="latency">—</div>
+
+      <!-- Conversation -->
+      <div class="conversation-panel">
+        <div class="panel-header">💬 Conversation</div>
+        <div class="conversation-feed idle" id="conversationFeed">Your turn</div>
       </div>
     </div>
-  </div>
 
-  <!-- Conversation transcript -->
-  <div class="transcript-section">
-    <h2>💬 Conversation</h2>
-    <div class="transcript-container" id="transcriptContainer">
-      <div class="transcript-idle">waiting for the robot…</div>
-    </div>
-  </div>
+    <!-- Right column -->
+    <div class="col-right">
+      <!-- Capabilities panel - merged and fills column -->
+      <div class="capabilities-panel">
+        <div class="panel-header">✨ Capabilities</div>
+        <div class="capabilities-grid" id="capabilitiesGrid">
+          <!-- Time -->
+          <div class="capability-card" data-tool="get_current_time">
+            <div class="capability-emoji">🕐</div>
+            <div class="capability-name">Time</div>
+            <div class="capability-result">—</div>
+          </div>
 
-  <!-- Latency trend -->
-  <div class="trend-section">
-    <h2>📊 Latency Trend (last 15 turns)</h2>
-    <div class="trend-bars" id="trendBars">
-      <div class="trend-idle">waiting for the robot…</div>
-    </div>
-  </div>
+          <!-- Dance with sub-buttons -->
+          <div class="capability-card" data-tool="dance">
+            <div class="capability-emoji">💃</div>
+            <div class="capability-name">Dance</div>
+            <div class="capability-sub-buttons">
+              <div class="capability-sub-row">
+                <button class="capability-btn" onclick="callTool('dance', {})">Random</button>
+                <button class="capability-btn" onclick="callTool('dance', {move: 'zoo'})">🦁 Zoo</button>
+              </div>
+              <div class="capability-sub-row">
+                <button class="capability-btn" onclick="callTool('dance', {move: 'madagascar'})">🐵 Mad</button>
+                <button class="capability-btn" onclick="callTool('dance', {move: 'mcqueen'})">🏎️ McQ</button>
+              </div>
+              <div class="capability-sub-row">
+                <button class="capability-btn stop" onclick="callTool('stop', {})">🛑 Stop</button>
+              </div>
+            </div>
+          </div>
 
-  <!-- Tool calls -->
-  <div class="tools-section" id="toolsSection">
-    <h2>🔧 Tools — light up + show their response when called</h2>
-    <div class="tools-grid">
-      <div class="tool-card" data-tool="get_current_time"><div class="tname">🕐 get_current_time</div><div class="tresp">—</div></div>
-      <div class="tool-card" data-tool="set_expression"><div class="tname">😊 set_expression</div><div class="tresp">—</div></div>
-      <div class="tool-card" data-tool="look_around"><div class="tname">👀 look_around</div><div class="tresp">—</div></div>
-      <div class="tool-card" data-tool="look_and_describe"><div class="tname">👁️ look_and_describe</div><div class="tresp">—</div></div>
-      <div class="tool-card" data-tool="dance"><div class="tname">💃 dance</div><div class="tresp">—</div></div>
-      <div class="tool-card" data-tool="stop"><div class="tname">🛑 stop</div><div class="tresp">—</div></div>
-      <div class="tool-card" data-tool="ignore"><div class="tname">🙊 ignore</div><div class="tresp">—</div></div>
-    </div>
-  </div>
+          <!-- Look Around -->
+          <div class="capability-card" data-tool="look_around">
+            <div class="capability-emoji">👀</div>
+            <div class="capability-name">Look Around</div>
+            <div class="capability-result">—</div>
+          </div>
 
-  <!-- Event log -->
-  <div class="log-section">
-    <h2>Event log</h2>
-    <div class="log-container" id="logContainer">
-      <div class="log-idle">waiting for the robot…</div>
+          <!-- See & Describe -->
+          <div class="capability-card" data-tool="look_and_describe">
+            <div class="capability-emoji">👁️</div>
+            <div class="capability-name">See & Describe</div>
+            <div class="capability-result">—</div>
+          </div>
+
+          <!-- Express with emotion buttons -->
+          <div class="capability-card" data-tool="set_expression">
+            <div class="capability-emoji">😊</div>
+            <div class="capability-name">Express</div>
+            <div class="capability-sub-buttons">
+              <div class="capability-sub-row">
+                <button class="capability-btn" onclick="callTool('set_expression', {emotion: 'happy'})">Happy</button>
+                <button class="capability-btn" onclick="callTool('set_expression', {emotion: 'excited'})">Excited</button>
+              </div>
+              <div class="capability-sub-row">
+                <button class="capability-btn" onclick="callTool('set_expression', {emotion: 'curious'})">Curious</button>
+                <button class="capability-btn" onclick="callTool('set_expression', {emotion: 'surprised'})">Surprised</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
 
 <script>
 // Constants
-const STAGE_ICONS = {
-  listening: '🎤',
-  hearing: '👂',
-  transcribing: '📝',
-  transcribed: '✓',
-  thinking: '🧠',
-  tool: '🔧',
-  reply: '💬',
-  speaking: '🔊',
-  done: '🏁',
-  error: '⚠'
+const TOOL_MAP = {
+  get_current_time: 'Time',
+  dance: 'Dance',
+  look_around: 'Look Around',
+  look_and_describe: 'See & Describe',
+  set_expression: 'Express',
+  stop: 'Stop',
+  ignore: 'Ignored'
+};
+
+const STAGE_COLOR_MAP = {
+  hear: 'hear',
+  think: 'think',
+  act: 'act',
+  speak: 'speak'
 };
 
 // State
 let live = false;
 let lastT = null;
-let turnT0 = null;
-let lastStage = null;
-let lastRowElement = null;
-let rowAccumText = '';
-let hasEvents = false;
+let currentTurn = { hear: null, think: null, act: null, speak: null, total: null };
+let hasConversation = false;
+let currentTurnIgnore = false;
+let danceActive = false; // Turn-scoped latch: don't override orb state while dancing
 
-// Current turn latencies for breakdown
-function freshTurn() {
-  return { speakLatency: null, sttLatency: null, llmLatency: null,
-           ttsLatency: null, totalLatency: null };
-}
-let currentTurn = freshTurn();
-let hearingT = null;  // wall-clock (ms) when the mic opened, to measure talk duration
-
-// event stage -> which box it lights up / writes its latency to
-const STAGE_TO_BOX = {
-  listening: 'listening', hearing: 'speak', transcribing: 'speak',
-  transcribed: 'stt', thinking: 'llm', tool: 'llm', reply: 'llm', speaking: 'tts',
-  done: 'total', error: null
-};
-// box -> currentTurn field, for the heatmap
-const BOX_FIELD = { speak: 'speakLatency', stt: 'sttLatency', llm: 'llmLatency', tts: 'ttsLatency' };
-
-function updateStatusDot(connected) {
-  const dot = document.getElementById('statusDot');
-  const text = document.getElementById('statusText');
+function updateConnection(connected) {
+  const pill = document.getElementById('connectionPill');
+  const text = document.getElementById('connectionText');
   if (connected) {
-    dot.classList.add('connected');
-    dot.classList.remove('disconnected');
-    text.textContent = '● connected';
-    text.style.color = '#22c55e';
+    pill.classList.remove('reconnecting');
+    pill.classList.add('connected');
+    text.textContent = '● Connected';
   } else {
-    dot.classList.add('disconnected');
-    dot.classList.remove('connected');
-    text.textContent = '⚠ disconnected';
-    text.style.color = '#ef4444';
+    pill.classList.remove('connected');
+    pill.classList.add('reconnecting');
+    text.textContent = '⚠ Reconnecting…';
   }
 }
 
-function formatTime(ms) {
-  const date = new Date(ms);
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
-  const seconds = String(date.getSeconds()).padStart(2, '0');
-  const millis = String(date.getMilliseconds()).padStart(3, '0');
-  return `${hours}:${minutes}:${seconds}.${millis}`;
+function updateOrbAura(state) {
+  const aura = document.getElementById('orbAura');
+  if (!aura) return;
+
+  aura.classList.remove('breathing', 'listen-pulse', 'think-pulse', 'speak-pulse', 'dance-pulse');
+
+  if (state === 'listening') {
+    aura.classList.add('listen-pulse');
+  } else if (state === 'thinking') {
+    aura.classList.add('think-pulse');
+  } else if (state === 'speaking') {
+    aura.classList.add('speak-pulse');
+  } else if (state === 'dancing') {
+    aura.classList.add('dance-pulse');
+  }
 }
 
-function updateBreakdownBar() {
-  const container = document.getElementById('breakdownContainer');
-  const stt = currentTurn.sttLatency;
-  const llm = currentTurn.llmLatency;
-  const tts = currentTurn.ttsLatency;
-  const total = currentTurn.totalLatency;
+function setStateOrb(stage) {
+  const orb = document.getElementById('stateOrb');
+  const label = document.getElementById('heroLabel');
 
-  if (total === null) {
-    container.innerHTML = '<div class="latency-idle">waiting for the robot…</div>';
+  // Don't override orb state if dancing (latch)
+  if (danceActive && stage !== 'error' && stage !== 'dancing') {
     return;
   }
 
-  let barHtml = '<div class="breakdown-bar">';
+  orb.classList.remove('listening', 'thinking', 'speaking', 'dancing', 'idle', 'error');
 
-  const segments = [];
-  if (stt !== null) segments.push({ ms: stt, label: `STT ${stt}ms`, class: 'stt', width: stt });
-  if (llm !== null) segments.push({ ms: llm, label: `LLM ${llm}ms`, class: 'llm', width: llm });
-  if (tts !== null) segments.push({ ms: tts, label: `TTS ${tts}ms`, class: 'tts', width: tts });
+  const isListening = ['listening', 'hearing', 'transcribing', 'transcribed'].includes(stage);
+  const isThinking = ['thinking', 'reply'].includes(stage);
+  const isSpeaking = stage === 'speaking';
+  const isDancing = stage === 'dancing';
+  const isError = stage === 'error';
 
-  if (segments.length === 0) {
-    barHtml += '<div class="segment empty">no latency data yet</div>';
+  if (isListening) {
+    orb.classList.add('listening');
+    label.textContent = 'Listening…';
+    updateOrbAura('listening');
+  } else if (isThinking) {
+    orb.classList.add('thinking');
+    label.textContent = 'Thinking…';
+    updateOrbAura('thinking');
+  } else if (isSpeaking) {
+    orb.classList.add('speaking');
+    label.textContent = 'Speaking…';
+    updateOrbAura('speaking');
+  } else if (isDancing) {
+    orb.classList.add('dancing');
+    label.textContent = 'Dancing 🎵';
+    updateOrbAura('dancing');
+    danceActive = true;
+  } else if (isError) {
+    orb.classList.add('error');
+    label.textContent = 'Connection lost';
+    updateOrbAura('');
+    danceActive = false;
   } else {
-    const totalWidth = segments.reduce((sum, s) => sum + s.width, 0);
-    for (const seg of segments) {
-      const pct = totalWidth > 0 ? ((seg.width / totalWidth) * 100).toFixed(1) : 0;
-      barHtml += `<div class="segment ${seg.class}" style="flex: ${seg.width}; min-width: auto;">${seg.label}</div>`;
+    orb.classList.add('idle');
+    label.textContent = 'Ready when you are';
+    updateOrbAura('');
+  }
+}
+
+function highlightPipelineNode(stageKey) {
+  document.querySelectorAll('.pipeline-node').forEach(n => n.classList.remove('active', 'hear', 'think', 'act', 'speak'));
+  if (stageKey) {
+    const colorKey = STAGE_COLOR_MAP[stageKey];
+    if (colorKey) {
+      const node = document.querySelector(`.pipeline-node[data-stage="${stageKey}"]`);
+      if (node) {
+        node.classList.add('active', colorKey);
+      }
     }
   }
-
-  barHtml += '</div>';
-
-  if (total !== null) {
-    barHtml += `<div class="latency-total">
-      <span class="label">Total latency (voice start → reply start):</span>
-      <span class="value">${total} ms</span>
-    </div>`;
-  }
-
-  container.innerHTML = barHtml;
 }
 
-function setBoxLatency(box, ms) {
+function triggerPipelineLight(stageKey) {
+  // Calculate which connector to light based on stage
+  const stages = ['hear', 'think', 'act', 'speak', 'total'];
+  const fromIdx = stages.indexOf(stageKey);
+  if (fromIdx < 0) return;
+
+  // Light travels from this stage's connector forward
+  const connectors = document.querySelectorAll('.pipeline-connector');
+  if (fromIdx === stages.length - 1) return; // Total stage, no connector ahead
+
+  const connector = connectors[fromIdx];
+  if (!connector) return;
+
+  // Activate the connector's glow
+  connector.classList.add('active');
+
+  // Create and animate a light particle
+  const light = document.createElement('div');
+  light.className = 'pipeline-light';
+  light.style.animationDuration = '1.2s';
+  connector.appendChild(light);
+
+  // Remove after animation
+  setTimeout(() => {
+    light.remove();
+    connector.classList.remove('active');
+  }, 1200);
+}
+
+function setPipelineLatency(stageKey, ms) {
   if (ms === null || ms === undefined) return;
-  const el = document.querySelector(`.stage-box[data-stage="${box}"] .latency`);
-  if (!el) return;
-  el.textContent = `${ms} ms`;
-  el.classList.add('value');
+  const latencyEl = document.querySelector(`.pipeline-latency[data-latency="${stageKey}"]`);
+  if (latencyEl) latencyEl.textContent = `${ms}ms`;
 }
 
-function highlightStage(stage) {
-  document.querySelectorAll('.stage-box').forEach(box => box.classList.remove('active'));
-  const target = STAGE_TO_BOX[stage];
-  if (target) {
-    const box = document.querySelector(`.stage-box[data-stage="${target}"]`);
-    if (box) box.classList.add('active');
-  }
+function resetPipelineLatencies() {
+  document.querySelectorAll('.pipeline-latency').forEach(el => el.textContent = '—');
 }
 
-// Colour the timed boxes by speed: slowest = red, fastest = green, gradient between.
-// Recomputed each completed turn so the bottleneck is obvious at a glance.
-function applyHeatmap() {
-  const boxes = ['speak', 'stt', 'llm', 'tts'];
-  const vals = boxes.map(b => currentTurn[BOX_FIELD[b]]).filter(v => typeof v === 'number');
-  if (vals.length < 2) return;
-  const min = Math.min(...vals), max = Math.max(...vals);
-  boxes.forEach(b => {
-    const v = currentTurn[BOX_FIELD[b]];
-    const box = document.querySelector(`.stage-box[data-stage="${b}"]`);
-    if (!box || typeof v !== 'number') return;
-    const frac = max > min ? (v - min) / (max - min) : 0;
-    const hue = Math.round(120 * (1 - frac));  // 120=green (fast) -> 0=red (slow)
-    box.style.borderColor = `hsl(${hue},70%,45%)`;
-    box.style.background = `hsl(${hue},75%,96%)`;
-    const lat = box.querySelector('.latency');
-    if (lat) { lat.style.color = `hsl(${hue},70%,36%)`; lat.style.fontWeight = '700'; }
-  });
-}
-
-function clearHeatmap() {
-  document.querySelectorAll('.stages-grid .stage-box').forEach(box => {
-    box.style.borderColor = '';
-    box.style.background = '';
-    const lat = box.querySelector('.latency');
-    if (lat) { lat.style.color = ''; lat.style.fontWeight = ''; }
-  });
-}
-
-function formatText(text) {
-  return (text + '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
-
-// Control panel: call a tool endpoint
-function callTool(name, params) {
+function callTool(name, params = {}) {
   const queryParts = [`name=${encodeURIComponent(name)}`];
   for (const [key, val] of Object.entries(params)) {
     if (val !== undefined && val !== null) {
@@ -857,158 +1198,139 @@ function callTool(name, params) {
     });
 }
 
-function showToast(message) {
+function showToast(message, isError = false, isReplay = false) {
+  if (isReplay) return; // Don't animate toasts on replay
+
   const existing = document.querySelector('.toast');
   if (existing) existing.remove();
 
   const toast = document.createElement('div');
-  toast.className = 'toast';
+  toast.className = isError ? 'toast error-toast animate-in' : 'toast animate-in';
   toast.textContent = message;
   document.body.appendChild(toast);
 
   setTimeout(() => {
     toast.style.opacity = '0';
-    toast.style.transform = 'translateY(8px)';
-    setTimeout(() => toast.remove(), 200);
+    toast.style.transition = 'opacity 0.3s ease';
+    setTimeout(() => toast.remove(), 300);
   }, 3000);
 }
 
-// Transcript and trend tracking
-let transcriptHasEvents = false;
-let currentTurnIgnore = false;
-let latencyTrend = [];  // Array of { ms, t }
+function addConversationMessage(role, text, isReplay = false) {
+  const feed = document.getElementById('conversationFeed');
 
-function updateTranscript(stage, text, t) {
-  const container = document.getElementById('transcriptContainer');
-
-  // Clear idle message on first transcribed/reply/tool event
-  if (!transcriptHasEvents && ['transcribed', 'reply', 'tool', 'done'].includes(stage)) {
-    transcriptHasEvents = true;
-    container.innerHTML = '';
+  if (!hasConversation) {
+    hasConversation = true;
+    feed.classList.remove('idle');
+    feed.innerHTML = '';
   }
 
-  // You spoke (transcribed)
-  if (stage === 'transcribed' && text) {
-    const msg = document.createElement('div');
-    msg.className = 'transcript-message user';
-    const bubble = document.createElement('div');
-    bubble.className = 'transcript-bubble';
-    bubble.textContent = text;
-    msg.appendChild(bubble);
-    container.appendChild(msg);
-    container.scrollTop = container.scrollHeight;
+  const msg = document.createElement('div');
+  msg.className = `message ${role}`;
+  if (isReplay) msg.classList.add('no-animate');
+
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble';
+  bubble.textContent = text;
+
+  msg.appendChild(bubble);
+  feed.appendChild(msg);
+  feed.scrollTop = feed.scrollHeight;
+}
+
+function addToolChip(text, isReplay = false) {
+  const feed = document.getElementById('conversationFeed');
+  if (!hasConversation) {
+    hasConversation = true;
+    feed.classList.remove('idle');
+    feed.innerHTML = '';
   }
 
-  // Robot replied (reply)
-  if (stage === 'reply' && text) {
-    const msg = document.createElement('div');
-    msg.className = 'transcript-message robot';
-    const bubble = document.createElement('div');
-    bubble.className = 'transcript-bubble';
-    bubble.textContent = text;
-    msg.appendChild(bubble);
-    container.appendChild(msg);
-    container.scrollTop = container.scrollHeight;
+  const chip = document.createElement('div');
+  chip.className = 'tool-chip';
+  if (isReplay) chip.classList.add('no-animate');
+
+  // Humanize the tool result
+  const humanized = humanizeToolResult(text.split('(')[0].trim(), text);
+  chip.textContent = humanized;
+
+  feed.appendChild(chip);
+  feed.scrollTop = feed.scrollHeight;
+}
+
+function addIgnoreChip(isReplay = false) {
+  const feed = document.getElementById('conversationFeed');
+  if (!hasConversation) {
+    hasConversation = true;
+    feed.classList.remove('idle');
+    feed.innerHTML = '';
   }
 
-  // Tool event (inline chip)
-  if (stage === 'tool' && text) {
-    const toolName = (text + '').split('(')[0].trim();
-    if (toolName === 'ignore') {
-      currentTurnIgnore = true;
-    }
-    const chip = document.createElement('div');
-    chip.className = 'transcript-chip';
-    chip.textContent = '🔧 ' + formatText(text);
-    container.appendChild(chip);
-    container.scrollTop = container.scrollHeight;
-  }
+  const chip = document.createElement('div');
+  chip.className = 'ignore-chip';
+  if (isReplay) chip.classList.add('no-animate');
+  chip.textContent = 'Stayed quiet';
+  feed.appendChild(chip);
+  feed.scrollTop = feed.scrollHeight;
+}
 
-  // Done event: if it was an ignore turn, show 🙊 chip
-  if (stage === 'done' && currentTurnIgnore) {
-    const chip = document.createElement('div');
-    chip.className = 'transcript-chip';
-    chip.style.background = '#fecaca';
-    chip.style.color = '#dc2626';
-    chip.textContent = '🙊 ignored';
-    container.appendChild(chip);
-    container.scrollTop = container.scrollHeight;
-  }
+function humanizeToolResult(toolName, text) {
+  // Parse text like "get_current_time(Thursday, June 19 2025, 02:15 PM)" or "dance(Zoo)"
+  // and return a humanized version (warm, end-user POV, no jargon)
+  const match = text.match(/^([^(]+)\((.*?)\)$/);
+  if (!match) return text;
 
-  // Reset on hearing (new turn)
-  if (stage === 'hearing') {
-    currentTurnIgnore = false;
+  const [, func, detail] = match;
+
+  switch (func) {
+    case 'get_current_time':
+      return `Checked the time: ${detail}`;
+    case 'dance':
+      // Drop "· 129bpm · 192s" detail from dance results
+      const danceMove = detail.split('·')[0].trim();
+      return `Danced ${danceMove}`;
+    case 'look_around':
+      return 'Looked around';
+    case 'look_and_describe':
+      return `Saw: ${detail}`;
+    case 'set_expression':
+      // Return friendly format like "Happy 😊"
+      const emotion = detail.charAt(0).toUpperCase() + detail.slice(1).toLowerCase();
+      const emojiMap = {
+        'Happy': '😊', 'Excited': '🤩', 'Curious': '🤔', 'Surprised': '😲'
+      };
+      const emoji = emojiMap[emotion] || '😊';
+      return `${emotion} ${emoji}`;
+    case 'stop':
+      return 'Stopped';
+    case 'ignore':
+      return 'Stayed quiet';
+    default:
+      return detail || func;
   }
 }
 
-function pushLatencyTrend(ms, t) {
-  if (typeof ms !== 'number') return;
-  latencyTrend.push({ ms, t: t || Date.now() });
-  if (latencyTrend.length > 15) {
-    latencyTrend.shift();
-  }
-  renderLatencyTrend();
-}
+function activateCapability(toolName, resultText, isReplay = false) {
+  const card = document.querySelector(`.capability-card[data-tool="${toolName}"]`);
+  if (!card) return;
 
-function renderLatencyTrend() {
-  const container = document.getElementById('trendBars');
-
-  if (latencyTrend.length === 0) {
-    container.innerHTML = '<div class="trend-idle">waiting for the robot…</div>';
-    return;
+  card.classList.add('active');
+  const resultEl = card.querySelector('.capability-result');
+  if (resultEl) {
+    const humanized = humanizeToolResult(toolName, resultText);
+    resultEl.textContent = humanized.substring(0, 100);
   }
 
-  const maxMs = Math.max(...latencyTrend.map(t => t.ms));
-  const minMs = Math.min(...latencyTrend.map(t => t.ms));
-  const range = maxMs - minMs || 1;
-
-  const bars = latencyTrend.map((entry, idx) => {
-    const heightFrac = (entry.ms - minMs) / range;
-    const height = Math.max(4, heightFrac * 80);
-    const hue = Math.round(120 * (1 - heightFrac));  // green (fast) to red (slow)
-    return `<div class="trend-bar" style="height: ${height}px; background: hsl(${hue},70%,45%);"><div class="trend-bar-label">${entry.ms}ms</div></div>`;
-  }).join('');
-
-  container.innerHTML = bars;
-}
-
-function addLogRow(stage, text, deltaMs, ms, t, isReplay) {
-  const container = document.getElementById('logContainer');
-
-  // Clear idle message on first event
-  if (!hasEvents) {
-    hasEvents = true;
-    container.innerHTML = '<table class="log-table"><thead><tr>' +
-      '<th class="time">Time</th>' +
-      '<th class="delta">Δ</th>' +
-      '<th class="stage">Stage</th>' +
-      '<th class="ms">ms</th>' +
-      '<th class="text">Details</th>' +
-      '</tr></thead><tbody id="logBody"></tbody></table>';
+  // Celebrate: brief glow on non-replay
+  if (!isReplay) {
+    card.style.animation = 'none';
+    setTimeout(() => {
+      card.style.animation = 'card-celebrate 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)';
+    }, 10);
   }
 
-  const tbody = document.getElementById('logBody');
-  if (!tbody) return;
-
-  const row = document.createElement('tr');
-  if (isReplay) row.classList.add('replay');
-
-  const timeStr = formatTime(t || Date.now());
-  const deltaStr = deltaMs !== null && deltaMs !== undefined ? `+${deltaMs} ms` : '—';
-  const icon = STAGE_ICONS[stage] || '·';
-  const stageStr = `${icon} ${stage}`;
-  const msStr = (ms !== null && ms !== undefined) ? `${ms} ms` : '';
-
-  row.innerHTML = `
-    <td class="time">${timeStr}</td>
-    <td class="delta">${deltaStr}</td>
-    <td class="stage">${stageStr}</td>
-    <td class="ms">${msStr}</td>
-    <td class="text">${formatText(text)}</td>
-  `;
-
-  tbody.appendChild(row);
-  container.scrollTop = container.scrollHeight;
+  // Don't remove active class; keep showing result
+  // Only remove after a long timeout or on next turn
 }
 
 function onLiveEvent(eventData, isReplay) {
@@ -1019,91 +1341,103 @@ function onLiveEvent(eventData, isReplay) {
 
   if (!t) t = Date.now();
 
-  const deltaMs = lastT === null ? null : Math.round(t - lastT);
   lastT = t;
 
-  // Reset for the new turn only when you START SPEAKING again (`hearing`), NOT on
-  // `listening`. That keeps the previous turn's numbers + heatmap colours on screen
-  // through the whole idle wait, so you have time to read them; the loop is already
-  // listening in the background and clears the moment your next utterance begins.
+  // Reset on hearing (new turn)
   if (stage === 'hearing') {
-    currentTurn = freshTurn();
-    hearingT = t;
-    clearHeatmap();
-    document.querySelectorAll('.stages-grid .stage-box[data-stage] .latency').forEach(el => {
-      if (el.closest('.stage-box').dataset.stage !== 'listening') {
-        el.textContent = '—'; el.classList.remove('value');
-      }
-    });
-    document.querySelectorAll('.tool-card').forEach(c => {
-      c.classList.remove('active');
-      const r = c.querySelector('.tresp'); if (r) r.textContent = '—';
+    currentTurn = { hear: null, think: null, act: null, speak: null, total: null };
+    resetPipelineLatencies();
+    currentTurnIgnore = false;
+    danceActive = false; // Clear dance latch only when new turn starts
+
+    // Clear capability active states
+    document.querySelectorAll('.capability-card.active').forEach(card => {
+      card.classList.remove('active');
     });
   }
 
-  // A tool call fired -> highlight that tool card and show its response + timing.
-  if (stage === 'tool') {
-    const name = (text + '').split('(')[0].trim();
-    const card = document.querySelector(`.tool-card[data-tool="${name}"]`);
-    if (card) {
-      card.classList.add('active');
-      const r = card.querySelector('.tresp');
-      if (r) {
-        const li = text.indexOf('('), ri = text.lastIndexOf(')');
-        const detail = (li >= 0 && ri > li) ? text.slice(li + 1, ri) : '';
-        r.textContent = (detail || '(called)') + (typeof ms === 'number' ? `  ·  ${ms} ms` : '');
-      }
-    }
-  }
+  // Map SSE stage to our pipeline stage for coloring
+  let stageKey = null;
+  if (stage === 'transcribed') stageKey = 'hear';
+  else if (stage === 'reply') stageKey = 'think';
+  else if (stage === 'tool') stageKey = 'act';
+  else if (stage === 'speaking') stageKey = 'speak';
 
-  // Each stage writes its EXACT latency into its own box.
-  if (stage === 'transcribing' && hearingT !== null) {
-    currentTurn.speakLatency = Math.max(0, Math.round(t - hearingT));  // how long you talked
-    setBoxLatency('speak', currentTurn.speakLatency);
-  } else if (stage === 'transcribed' && typeof ms === 'number') {
-    currentTurn.sttLatency = ms; setBoxLatency('stt', ms);
+  // Update latency for this stage
+  if (stage === 'transcribed' && typeof ms === 'number') {
+    currentTurn.hear = ms;
+    setPipelineLatency('hear', ms);
   } else if (stage === 'reply' && typeof ms === 'number') {
-    currentTurn.llmLatency = ms; setBoxLatency('llm', ms);
+    currentTurn.think = ms;
+    setPipelineLatency('think', ms);
+  } else if (stage === 'tool' && typeof ms === 'number') {
+    currentTurn.act = ms;
+    setPipelineLatency('act', ms);
   } else if (stage === 'speaking' && typeof ms === 'number') {
-    currentTurn.ttsLatency = ms; setBoxLatency('tts', ms);
+    currentTurn.speak = ms;
+    setPipelineLatency('speak', ms);
   } else if (stage === 'done' && typeof ms === 'number') {
-    currentTurn.totalLatency = ms; setBoxLatency('total', ms);
+    currentTurn.total = ms;
+    setPipelineLatency('total', ms);
   }
 
   if (!isReplay) {
     live = true;
-    highlightStage(stage);
-    if (stage === 'done') {
-      applyHeatmap();                              // colour slowest red / fastest green
-      setTimeout(() => highlightStage(null), 800);
+
+    // Update state orb and pipeline highlighting
+    if (stage === 'tool') {
+      const toolName = (text + '').split('(')[0].trim();
+      if (toolName === 'dance') {
+        setStateOrb('dancing');
+      } else {
+        setStateOrb(stage);
+      }
+    } else {
+      setStateOrb(stage);
     }
-  } else if (stage === 'done') {
-    applyHeatmap();                                // colour the replayed last turn too
+
+    if (stageKey) {
+      highlightPipelineNode(stageKey);
+      triggerPipelineLight(stageKey);
+    }
+
+    if (stage === 'done') {
+      danceActive = false; // Clear dance latch on turn completion
+      // Remove active glow from capability cards but keep their result text
+      document.querySelectorAll('.capability-card.active').forEach(card => {
+        card.classList.remove('active');
+      });
+      setTimeout(() => highlightPipelineNode(null), 800);
+    }
   }
 
-  updateBreakdownBar();
-  addLogRow(stage, text, deltaMs, ms, t, isReplay);
-
-  // NEW: update transcript, trend, and track ignore flag
-  updateTranscript(stage, text, t);
-  if (stage === 'hearing') {
-    currentTurnIgnore = false;
-  }
-  if (stage === 'tool' && text) {
+  // Update UI based on stage
+  if (stage === 'transcribed' && text) {
+    addConversationMessage('user', text, isReplay);
+  } else if (stage === 'reply' && text) {
+    addConversationMessage('robot', text, isReplay);
+  } else if (stage === 'tool' && text) {
     const toolName = (text + '').split('(')[0].trim();
-    if (toolName === 'ignore') {
+    // Skip double-chip for ignore
+    if (toolName !== 'ignore') {
+      addToolChip(text, isReplay);
+      activateCapability(toolName, text, isReplay);
+    } else {
       currentTurnIgnore = true;
     }
-  }
-  if (stage === 'done' && typeof ms === 'number') {
-    pushLatencyTrend(ms, t);
+  } else if (stage === 'error' && text) {
+    if (!isReplay) {
+      showToast(`Connection error: ${text}`, true, isReplay);
+    }
+    setStateOrb('error');
+  } else if (stage === 'done' && currentTurnIgnore) {
+    addIgnoreChip(isReplay);
   }
 }
 
-// Connect to SSE
 function connectLive() {
   if (typeof EventSource === 'undefined') {
-    updateStatusDot(false);
+    updateConnection(false);
     return;
   }
 
@@ -1111,10 +1445,8 @@ function connectLive() {
     const es = new EventSource('/events');
 
     es.onopen = function() {
-      updateStatusDot(true);
-      if (!live) {
-        live = true;
-      }
+      updateConnection(true);
+      live = true;
     };
 
     es.onmessage = function(event) {
@@ -1122,7 +1454,7 @@ function connectLive() {
         const data = JSON.parse(event.data);
         onLiveEvent(data, false);
       } catch (e) {
-        // Silently ignore malformed events
+        console.error('Failed to parse event:', e);
       }
     };
 
@@ -1131,19 +1463,18 @@ function connectLive() {
         const data = JSON.parse(event.data);
         onLiveEvent(data, true);
       } catch (e) {
-        // Silently ignore malformed events
+        console.error('Failed to parse replay event:', e);
       }
     });
 
     es.onerror = function() {
-      if (live) {
-        updateStatusDot(false);
-      }
+      updateConnection(false);
+      setStateOrb('error');
     };
 
   } catch (e) {
-    // SSE not available (e.g., file://)
-    updateStatusDot(false);
+    console.error('EventSource error:', e);
+    updateConnection(false);
   }
 }
 
