@@ -4,72 +4,36 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Reachy Mini · Live Dashboard</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
 <style>
   * { box-sizing: border-box; }
+
   html, body {
     margin: 0;
     padding: 0;
-    background: #FBF9F6;
-    color: #2B2722;
+    background: #F5F4F2;
+    color: #2D3436;
     font-family: 'Inter', sans-serif;
     font-size: 14px;
-    line-height: 1.5;
+    line-height: 1.6;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }
 
-  /* Color variables */
   :root {
-    --amber-text: #9A6410;
+    --amber: #B8860B;
+    --slate: #1E3A8A;
+    --teal: #06B6D4;
+    --purple: #7C3AED;
+    --red: #D84040;
+    --gray: #D4D0CC;
+    --gray-light: #EBE8E4;
+    --text: #2D3436;
+    --text-mute: #8B8986;
   }
 
-  /* Respect reduced motion */
   @media (prefers-reduced-motion: reduce) {
     * { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
-  }
-
-  /* Unified shadow recipe for premium elevation */
-  .unified-shadow {
-    box-shadow: 0 2px 8px rgba(0,0,0,.06), 0 8px 24px rgba(0,0,0,.04);
-  }
-
-  /* Ambient gradient mesh — subtle warmth behind everything */
-  .ambient-mesh {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    pointer-events: none;
-    z-index: -1;
-    background:
-      radial-gradient(ellipse at 20% 30%, rgba(255, 200, 150, 0.08) 0%, transparent 40%),
-      radial-gradient(ellipse at 80% 60%, rgba(255, 150, 120, 0.06) 0%, transparent 45%),
-      radial-gradient(ellipse at 50% 90%, rgba(200, 180, 160, 0.04) 0%, transparent 50%);
-    animation: drift 20s ease-in-out infinite;
-  }
-
-  @keyframes drift {
-    0%, 100% { transform: translate(0, 0); }
-    33% { transform: translate(-2px, 3px); }
-    66% { transform: translate(2px, -2px); }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .ambient-mesh {
-      animation: none;
-    }
-  }
-
-  /* Single viewport grid */
-  #viewport {
-    display: grid;
-    grid-template-columns: 1fr;
-    grid-template-rows: auto 1fr;
-    width: 100vw;
-    height: 100vh;
-    overflow: hidden;
   }
 
   /* Header */
@@ -79,8 +43,7 @@
     justify-content: space-between;
     padding: 16px 24px;
     background: #FFFFFF;
-    border-bottom: 1px solid #ECE8E2;
-    box-shadow: 0 1px 3px rgba(0,0,0,.06);
+    border-bottom: 1px solid var(--gray-light);
   }
 
   .header-left {
@@ -99,12 +62,13 @@
     font-size: 18px;
     font-weight: 700;
     margin: 0;
-    color: #2B2722;
+    color: var(--text);
+    letter-spacing: -0.5px;
   }
 
   .header-subtitle {
     font-size: 12px;
-    color: #9A9590;
+    color: var(--text-mute);
     margin-left: 8px;
   }
 
@@ -114,10 +78,10 @@
     gap: 6px;
     padding: 6px 12px;
     border-radius: 12px;
-    background: #ECE8E2;
+    background: var(--gray-light);
     font-size: 12px;
-    font-family: 'Space Mono', monospace;
-    color: #9A9590;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--text-mute);
     transition: all 0.3s ease;
   }
 
@@ -127,8 +91,8 @@
   }
 
   .connection-pill.reconnecting {
-    background: #FFF3F3;
-    color: #C62828;
+    background: #FFF5F5;
+    color: var(--red);
   }
 
   .connection-dot {
@@ -136,7 +100,7 @@
     width: 6px;
     height: 6px;
     border-radius: 50%;
-    background: #9A9590;
+    background: var(--text-mute);
     animation: pulse 2s infinite;
   }
 
@@ -146,23 +110,31 @@
   }
 
   .connection-pill.reconnecting .connection-dot {
-    background: #C62828;
+    background: var(--red);
     animation: pulse-red 2s infinite;
   }
 
   @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
   @keyframes pulse-red { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
 
-  /* Main two-column layout */
+  /* Main layout grid */
+  #viewport {
+    display: grid;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+  }
+
   .main {
     display: grid;
-    grid-template-columns: 1.62fr 1fr;
+    grid-template-columns: 1fr 1fr;
     gap: 20px;
     padding: 20px 24px;
     overflow: hidden;
   }
 
-  /* Left column */
   .col-left {
     display: flex;
     flex-direction: column;
@@ -171,7 +143,15 @@
     min-height: 0;
   }
 
-  /* Hero state orb */
+  .col-right {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    overflow: hidden;
+    min-height: 0;
+  }
+
+  /* Hero section with state badge */
   .hero-container {
     display: flex;
     flex-direction: column;
@@ -180,38 +160,79 @@
     gap: 16px;
     padding: 24px;
     background: #FFFFFF;
-    border-radius: 16px;
-    box-shadow: 0 2px 8px rgba(0,0,0,.06), 0 8px 24px rgba(0,0,0,.04);
+    border-radius: 12px;
+    border: 1px solid var(--gray-light);
     min-height: 280px;
     position: relative;
     overflow: visible;
   }
 
-  /* Orb aura — luxurious breathing radial-gradient glow */
-  .orb-aura {
+  .state-badge {
     position: absolute;
-    width: 300px;
-    height: 300px;
+    top: 16px;
+    right: 16px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    background: rgba(45, 52, 54, 0.08);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-mute);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .state-badge.asleep {
+    background: rgba(216, 64, 64, 0.12);
+    color: var(--red);
+  }
+
+  .state-badge.idle {
+    background: rgba(176, 134, 11, 0.12);
+    color: var(--amber);
+  }
+
+  .state-badge.listening {
+    background: rgba(30, 58, 138, 0.12);
+    color: var(--slate);
+  }
+
+  .state-badge.thinking {
+    background: rgba(124, 58, 237, 0.12);
+    color: var(--purple);
+  }
+
+  .state-badge.speaking {
+    background: rgba(6, 182, 212, 0.12);
+    color: var(--teal);
+  }
+
+  /* Orb with signal ring */
+  .orb-container {
+    position: relative;
+    width: 160px;
+    height: 160px;
+  }
+
+  .signal-ring {
+    position: absolute;
+    inset: -8px;
     border-radius: 50%;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    pointer-events: none;
-    z-index: 0;
+    border: 2px solid var(--amber);
     opacity: 0;
-    transition: opacity 0.4s ease;
-    will-change: transform, opacity;
-    box-shadow: none;
+    animation: signal-pulse 2s ease-out infinite;
   }
 
-  .orb-aura.breathing {
-    animation: aura-breathe 2s ease-in-out infinite;
-    opacity: 0.5;
+  @keyframes signal-pulse {
+    from { opacity: 0.8; transform: scale(1); }
+    to { opacity: 0; transform: scale(1.3); }
   }
 
-  @keyframes aura-breathe {
-    0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.5; }
-    50% { transform: translate(-50%, -50%) scale(1.15); opacity: 0.7; }
+  .signal-ring.active {
+    animation: signal-pulse 2s ease-out infinite;
   }
 
   .orb {
@@ -219,115 +240,60 @@
     width: 160px;
     height: 160px;
     border-radius: 50%;
-    background: linear-gradient(135deg, #D4CEC8 0%, #B8B0A8 100%);
-    box-shadow: 0 8px 28px rgba(0,0,0,.12), inset 0 -4px 12px rgba(0,0,0,.15), inset 0 4px 8px rgba(255,255,255,.4);
+    background: linear-gradient(135deg, #E8E4E0 0%, #D4CEC8 100%);
+    box-shadow: 0 8px 28px rgba(0,0,0,.08), inset 0 -4px 12px rgba(0,0,0,.12), inset 0 4px 8px rgba(255,255,255,.4);
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 56px;
-    transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
     z-index: 1;
   }
 
-  /* Antenna */
   .antenna {
     position: absolute;
     width: 2px;
     height: 28px;
-    background: rgba(43, 39, 34, 0.4);
+    background: rgba(45, 52, 54, 0.3);
     border-radius: 2px;
     top: -8px;
     transform-origin: center 80px;
-    transition: all 0.3s ease;
+    transition: all 0.4s ease;
   }
 
   .antenna-left { left: 45px; }
   .antenna-right { right: 45px; }
 
-  /* Orb aura layer — state-specific radial-gradient glows */
-  .hero-container .orb-aura.listen-pulse {
-    background: radial-gradient(circle, rgba(76, 139, 245, 0.3) 0%, transparent 65%);
-    animation: aura-listen-breathe 2s ease-in-out infinite;
-    opacity: 0.6;
-  }
-
-  @keyframes aura-listen-breathe {
-    0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.6; }
-    50% { transform: translate(-50%, -50%) scale(1.2); opacity: 0.8; }
-  }
-
-  .hero-container .orb-aura.think-pulse {
-    background: radial-gradient(circle, rgba(139, 92, 246, 0.3) 0%, transparent 65%);
-    animation: aura-think-breathe 3s ease-in-out infinite;
-    opacity: 0.55;
-  }
-
-  @keyframes aura-think-breathe {
-    0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.55; }
-    50% { transform: translate(-50%, -50%) scale(1.2); opacity: 0.75; }
-  }
-
-  .hero-container .orb-aura.speak-pulse {
-    background: radial-gradient(circle, rgba(31, 185, 154, 0.3) 0%, transparent 65%);
-    animation: aura-speak-breathe 2s ease-in-out infinite;
-    opacity: 0.6;
-  }
-
-  @keyframes aura-speak-breathe {
-    0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.6; }
-    50% { transform: translate(-50%, -50%) scale(1.2); opacity: 0.8; }
-  }
-
-  .hero-container .orb-aura.dance-pulse {
-    background: radial-gradient(circle, rgba(245, 166, 35, 0.35) 0%, transparent 65%);
-    animation: aura-dance-breathe 0.8s ease-in-out infinite;
-    opacity: 0.65;
-  }
-
-  @keyframes aura-dance-breathe {
-    0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.65; }
-    50% { transform: translate(-50%, -50%) scale(1.2); opacity: 0.85; }
-  }
-
-  /* Orb states with saturated deep→bright gradients */
   .orb.listening {
-    background: linear-gradient(135deg, #2E5AA0 0%, #4C8BF5 100%);
-    box-shadow: 0 8px 28px rgba(76, 139, 245, 0.4), inset 0 -4px 12px rgba(0,0,0,.15), inset 0 4px 8px rgba(255,255,255,.2);
-    animation: breathe 2s ease-in-out infinite;
+    background: linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%);
+    box-shadow: 0 8px 28px rgba(30, 58, 138, 0.3), inset 0 -4px 12px rgba(0,0,0,.12), inset 0 4px 8px rgba(255,255,255,.15);
   }
 
   .orb.listening .antenna {
-    animation: antenna-perk 0.5s ease-out forwards, antenna-bob 2s ease-in-out infinite;
+    animation: antenna-listen 2s ease-in-out infinite;
   }
 
-  @keyframes breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.08); } }
-
-  @keyframes antenna-perk {
-    from { transform: rotateZ(-8deg) translateY(2px); }
-    to { transform: rotateZ(-8deg) translateY(0); }
-  }
-
-  @keyframes antenna-bob {
+  @keyframes antenna-listen {
     0%, 100% { transform: rotateZ(-8deg); }
     50% { transform: rotateZ(8deg); }
   }
 
   .orb.thinking {
-    background: linear-gradient(135deg, #6B3FA0 0%, #8B5CF6 100%);
-    box-shadow: 0 8px 28px rgba(139, 92, 246, 0.4), inset 0 -4px 12px rgba(0,0,0,.15), inset 0 4px 8px rgba(255,255,255,.15);
-    animation: shimmer 3s ease-in-out infinite;
+    background: linear-gradient(135deg, #6D28D9 0%, #7C3AED 100%);
+    box-shadow: 0 8px 28px rgba(124, 58, 237, 0.3), inset 0 -4px 12px rgba(0,0,0,.12), inset 0 4px 8px rgba(255,255,255,.1);
+    animation: shimmer-subtle 3s ease-in-out infinite;
   }
 
   .orb.thinking .antenna {
-    animation: antenna-sway 3s ease-in-out infinite;
+    animation: antenna-think 3s ease-in-out infinite;
   }
 
-  @keyframes shimmer {
-    0%, 100% { background: linear-gradient(135deg, #6B3FA0 0%, #8B5CF6 100%); }
-    50% { background: linear-gradient(135deg, #8B5CF6 0%, #A78BFA 100%); }
+  @keyframes shimmer-subtle {
+    0%, 100% { background: linear-gradient(135deg, #6D28D9 0%, #7C3AED 100%); }
+    50% { background: linear-gradient(135deg, #7C3AED 0%, #8B5CF6 100%); }
   }
 
-  @keyframes antenna-sway {
+  @keyframes antenna-think {
     0%, 100% { transform: rotateZ(-12deg); }
     25% { transform: rotateZ(0deg); }
     50% { transform: rotateZ(12deg); }
@@ -335,28 +301,22 @@
   }
 
   .orb.speaking {
-    background: linear-gradient(135deg, #0D7377 0%, #1FB99A 100%);
-    box-shadow: 0 8px 28px rgba(31, 185, 154, 0.4), inset 0 -4px 12px rgba(0,0,0,.15), inset 0 4px 8px rgba(255,255,255,.2);
-    animation: wave 2s ease-in-out infinite;
+    background: linear-gradient(135deg, #0369A1 0%, #06B6D4 100%);
+    box-shadow: 0 8px 28px rgba(6, 182, 212, 0.3), inset 0 -4px 12px rgba(0,0,0,.12), inset 0 4px 8px rgba(255,255,255,.15);
   }
 
   .orb.speaking .antenna {
-    animation: antenna-sway-speak 1.4s ease-in-out infinite;
+    animation: antenna-speak 1.4s ease-in-out infinite;
   }
 
-  @keyframes wave {
-    0%, 100% { background: linear-gradient(135deg, #0D7377 0%, #1FB99A 100%); }
-    50% { background: linear-gradient(135deg, #1FB99A 0%, #2DC9AA 100%); }
-  }
-
-  @keyframes antenna-sway-speak {
+  @keyframes antenna-speak {
     0%, 100% { transform: rotateZ(-6deg); }
     50% { transform: rotateZ(6deg); }
   }
 
   .orb.dancing {
-    background: linear-gradient(135deg, #C47A1A 0%, #F5A623 100%);
-    box-shadow: 0 8px 28px rgba(245, 166, 35, 0.45), inset 0 -4px 12px rgba(0,0,0,.15), inset 0 4px 8px rgba(255,255,255,.15);
+    background: linear-gradient(135deg, #92400E 0%, #D97706 100%);
+    box-shadow: 0 8px 28px rgba(217, 119, 6, 0.3), inset 0 -4px 12px rgba(0,0,0,.12), inset 0 4px 8px rgba(255,255,255,.1);
     animation: dance-bounce 0.6s ease-in-out infinite;
   }
 
@@ -375,42 +335,29 @@
     50% { transform: rotateZ(12deg) translateY(-3px); }
   }
 
-  .orb.idle {
-    background: linear-gradient(135deg, #D4CEC8 0%, #B8B0A8 100%);
-    box-shadow: 0 8px 28px rgba(0,0,0,.1), inset 0 -4px 12px rgba(0,0,0,.15), inset 0 4px 8px rgba(255,255,255,.3);
-  }
-
   .orb.error {
-    background: linear-gradient(135deg, #C62828 0%, #FF5252 100%);
-    box-shadow: 0 8px 28px rgba(198, 40, 40, 0.4), inset 0 -4px 12px rgba(0,0,0,.15), inset 0 4px 8px rgba(255,255,255,.1);
-    animation: error-pulse 0.5s ease-in-out;
-  }
-
-  @keyframes error-pulse {
-    0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.05); }
+    background: linear-gradient(135deg, #B91C1C 0%, #D84040 100%);
+    box-shadow: 0 8px 28px rgba(216, 64, 64, 0.3), inset 0 -4px 12px rgba(0,0,0,.12), inset 0 4px 8px rgba(255,255,255,.05);
   }
 
   .hero-label {
     font-family: 'Space Grotesk', sans-serif;
-    font-size: 36px;
-    font-weight: 800;
+    font-size: 28px;
+    font-weight: 700;
     text-align: center;
-    color: #2B2722;
+    color: var(--text);
     letter-spacing: -0.5px;
-    transition: color 0.4s ease, opacity 0.2s ease;
+    transition: color 0.5s ease;
     line-height: 1.1;
-    position: relative;
-    z-index: 1;
   }
 
-  .orb.listening ~ .hero-label { color: #4C8BF5; }
-  .orb.thinking ~ .hero-label { color: #8B5CF6; }
-  .orb.speaking ~ .hero-label { color: #1FB99A; }
-  .orb.dancing ~ .hero-label { color: #F5A623; }
-  .orb.error ~ .hero-label { color: #C62828; }
+  .orb.listening ~ .hero-label { color: var(--slate); }
+  .orb.thinking ~ .hero-label { color: var(--purple); }
+  .orb.speaking ~ .hero-label { color: var(--teal); }
+  .orb.dancing ~ .hero-label { color: #D97706; }
+  .orb.error ~ .hero-label { color: var(--red); }
 
-  /* Pipeline rail with flowing connectors */
+  /* Pipeline rail */
   .pipeline-rail {
     display: flex;
     align-items: center;
@@ -419,36 +366,20 @@
     padding: 16px 12px;
     background: #FFFFFF;
     border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(0,0,0,.06), 0 8px 24px rgba(0,0,0,.04);
+    border: 1px solid var(--gray-light);
     position: relative;
   }
 
   .pipeline-connector {
     flex: 1;
     height: 2px;
-    background: linear-gradient(90deg, #ECE8E2 0%, #E0D9D0 50%, #ECE8E2 100%);
+    background: var(--gray-light);
     position: relative;
     margin: 0 -2px;
   }
 
   .pipeline-connector.active {
-    background: linear-gradient(90deg, #4C8BF5 0%, #8B5CF6 25%, #F5A623 50%, #1FB99A 75%, #ECE8E2 100%);
-  }
-
-  .pipeline-light {
-    position: absolute;
-    top: -2px;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: #F5A623;
-    box-shadow: 0 0 12px rgba(245, 166, 35, 0.9), 0 0 20px rgba(245, 166, 35, 0.6);
-    animation: travel-light linear forwards;
-  }
-
-  @keyframes travel-light {
-    from { left: 0; opacity: 1; }
-    to { left: 100%; opacity: 0.2; }
+    background: linear-gradient(90deg, var(--slate) 0%, var(--purple) 25%, #D97706 50%, var(--teal) 75%, var(--gray-light) 100%);
   }
 
   .pipeline-node {
@@ -458,7 +389,7 @@
     gap: 6px;
     padding: 10px 12px;
     border-radius: 8px;
-    background: #F5F3F0;
+    background: transparent;
     transition: all 0.3s ease;
     flex-shrink: 0;
     position: relative;
@@ -466,27 +397,8 @@
   }
 
   .pipeline-node.active {
+    background: rgba(45, 52, 54, 0.06);
     transform: scale(1.05);
-  }
-
-  .pipeline-node.active.hear {
-    background: rgba(76, 139, 245, 0.2);
-    box-shadow: 0 0 0 2px rgba(76, 139, 245, 0.3), 0 4px 12px rgba(76, 139, 245, 0.15);
-  }
-
-  .pipeline-node.active.think {
-    background: rgba(139, 92, 246, 0.2);
-    box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.3), 0 4px 12px rgba(139, 92, 246, 0.15);
-  }
-
-  .pipeline-node.active.act {
-    background: rgba(245, 166, 35, 0.2);
-    box-shadow: 0 0 0 2px rgba(245, 166, 35, 0.3), 0 4px 12px rgba(245, 166, 35, 0.15);
-  }
-
-  .pipeline-node.active.speak {
-    background: rgba(31, 185, 154, 0.2);
-    box-shadow: 0 0 0 2px rgba(31, 185, 154, 0.3), 0 4px 12px rgba(31, 185, 154, 0.15);
   }
 
   .pipeline-icon {
@@ -496,48 +408,49 @@
   .pipeline-label {
     font-size: 12px;
     font-weight: 500;
-    color: #9A9590;
+    color: var(--text-mute);
     text-align: center;
     white-space: nowrap;
+    font-family: 'Space Grotesk', sans-serif;
   }
 
-  .pipeline-node.active.hear .pipeline-label { color: #4C8BF5; font-weight: 700; }
-  .pipeline-node.active.think .pipeline-label { color: #8B5CF6; font-weight: 700; }
-  .pipeline-node.active.act .pipeline-label { color: #F5A623; font-weight: 700; }
-  .pipeline-node.active.speak .pipeline-label { color: #1FB99A; font-weight: 700; }
+  .pipeline-node.active .pipeline-label {
+    font-weight: 700;
+  }
 
   .pipeline-latency {
-    font-family: 'Space Mono', monospace;
+    font-family: 'JetBrains Mono', monospace;
     font-size: 11px;
-    color: #9A9590;
+    font-weight: 600;
+    color: var(--text-mute);
     text-align: center;
-    font-weight: 500;
   }
 
-  .pipeline-node.active.hear .pipeline-latency { color: #4C8BF5; font-weight: 700; }
-  .pipeline-node.active.think .pipeline-latency { color: #8B5CF6; font-weight: 700; }
-  .pipeline-node.active.act .pipeline-latency { color: var(--amber-text); font-weight: 700; }
-  .pipeline-node.active.speak .pipeline-latency { color: #1FB99A; font-weight: 700; }
+  .pipeline-latency.fast { color: #16A34A; }
+  .pipeline-latency.medium { color: #D97706; }
+  .pipeline-latency.slow { color: var(--red); }
 
-  /* Conversation */
+  /* Conversation panel */
   .conversation-panel {
     display: flex;
     flex-direction: column;
     background: #FFFFFF;
     border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(0,0,0,.06), 0 8px 24px rgba(0,0,0,.04);
+    border: 1px solid var(--gray-light);
     overflow: hidden;
-    min-height: 0;
     flex: 1;
+    min-height: 0;
   }
 
   .panel-header {
     padding: 12px 16px;
-    border-bottom: 1px solid #ECE8E2;
+    border-bottom: 1px solid var(--gray-light);
     font-size: 12px;
     font-weight: 600;
     letter-spacing: 0.5px;
-    color: #9A9590;
+    color: var(--text-mute);
+    text-transform: uppercase;
+    font-family: 'Space Grotesk', sans-serif;
   }
 
   .conversation-feed {
@@ -548,15 +461,13 @@
     flex-direction: column;
     gap: 8px;
     min-height: 0;
-    justify-content: flex-start;
     scroll-behavior: smooth;
   }
 
   .conversation-feed.idle {
     justify-content: center;
     align-items: center;
-    color: #9A9590;
-    font-style: italic;
+    color: var(--text-mute);
     font-size: 13px;
   }
 
@@ -566,15 +477,11 @@
     animation: slideIn 0.3s ease;
   }
 
-  .message.no-animate {
-    animation: none;
-  }
+  .message.no-animate { animation: none; }
 
   @keyframes slideIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 
-  .message.user {
-    justify-content: flex-end;
-  }
+  .message.user { justify-content: flex-end; }
 
   .bubble {
     max-width: 70%;
@@ -586,14 +493,14 @@
   }
 
   .message.user .bubble {
-    background: #FF6B5C;
+    background: var(--slate);
     color: #FFFFFF;
     border-radius: 12px 4px 12px 12px;
   }
 
   .message.robot .bubble {
-    background: #F5F3F0;
-    color: #2B2722;
+    background: var(--gray-light);
+    color: var(--text);
     border-radius: 4px 12px 12px 12px;
   }
 
@@ -601,230 +508,301 @@
     display: inline-block;
     padding: 4px 8px;
     border-radius: 6px;
-    background: rgba(245, 166, 35, 0.12);
-    color: var(--amber-text);
+    background: rgba(184, 134, 11, 0.12);
+    color: var(--amber);
     font-size: 12px;
-    font-family: 'Space Mono', monospace;
+    font-family: 'JetBrains Mono', monospace;
     font-weight: 500;
     animation: slideIn 0.3s ease;
   }
 
-  .tool-chip.no-animate {
-    animation: none;
-  }
+  .tool-chip.no-animate { animation: none; }
 
-  .ignore-chip {
+  .ignored-chip {
     display: inline-block;
     padding: 4px 8px;
     border-radius: 6px;
-    background: rgba(169, 169, 169, 0.12);
-    color: #6B6B6B;
+    background: rgba(45, 52, 54, 0.08);
+    color: var(--text-mute);
     font-size: 12px;
-    font-family: 'Space Mono', monospace;
+    font-family: 'JetBrains Mono', monospace;
     font-weight: 500;
     animation: slideIn 0.3s ease;
   }
 
-  .ignore-chip.no-animate {
-    animation: none;
-  }
-
-  /* Scrollbar */
   .conversation-feed::-webkit-scrollbar {
     width: 6px;
   }
 
-  .conversation-feed::-webkit-scrollbar-track {
-    background: transparent;
-  }
+  .conversation-feed::-webkit-scrollbar-track { background: transparent; }
 
   .conversation-feed::-webkit-scrollbar-thumb {
-    background: #ECE8E2;
+    background: var(--gray-light);
     border-radius: 3px;
   }
 
   .conversation-feed::-webkit-scrollbar-thumb:hover {
-    background: #D4CEC8;
+    background: var(--gray);
   }
 
-  /* Right column */
-  .col-right {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-    overflow: hidden;
-    min-height: 0;
-  }
-
-  /* Capabilities panel - fills the column */
-  .capabilities-panel {
+  /* Skipped feed */
+  .skipped-panel {
     display: flex;
     flex-direction: column;
     background: #FFFFFF;
     border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(0,0,0,.06), 0 8px 24px rgba(0,0,0,.04);
+    border: 1px solid var(--gray-light);
     overflow: hidden;
     flex: 1;
     min-height: 0;
   }
 
-  .capabilities-grid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 10px;
-    padding: 16px;
+  .skipped-feed {
+    flex: 1;
     overflow-y: auto;
-    min-height: 0;
-  }
-
-  .capabilities-grid::-webkit-scrollbar {
-    width: 6px;
-  }
-
-  .capabilities-grid::-webkit-scrollbar-track {
-    background: transparent;
-  }
-
-  .capabilities-grid::-webkit-scrollbar-thumb {
-    background: #ECE8E2;
-    border-radius: 3px;
-  }
-
-  .capabilities-grid::-webkit-scrollbar-thumb:hover {
-    background: #D4CEC8;
-  }
-
-  .capability-card {
+    padding: 12px;
     display: flex;
     flex-direction: column;
     gap: 8px;
-    padding: 12px;
-    border-radius: 12px;
-    background: #F5F3F0;
-    border: 1px solid #ECE8E2;
-    transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
-    cursor: pointer;
-    text-align: center;
-    position: relative;
-    tabindex: 0;
+    min-height: 0;
   }
 
-  .capability-card:hover {
-    background: #FAFAF8;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0,0,0,.08);
-  }
-
-  .capability-card:active {
-    transform: translateY(0);
-  }
-
-  .capability-card:focus-visible {
-    outline: 2px solid #4C8BF5;
-    outline-offset: 2px;
-  }
-
-  .capability-card.active {
-    background: rgba(245, 166, 35, 0.12);
-    border-color: #F5A623;
-    box-shadow: 0 0 16px rgba(245, 166, 35, 0.5), inset 0 0 8px rgba(245, 166, 35, 0.15);
-    animation: card-celebrate 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
-  }
-
-  @keyframes card-celebrate {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.08); }
-    100% { transform: scale(1); }
-  }
-
-  .capability-emoji {
-    font-size: 24px;
-    line-height: 1;
-  }
-
-  .capability-name {
+  .skipped-feed.idle {
+    justify-content: center;
+    align-items: center;
+    color: var(--text-mute);
     font-size: 12px;
-    font-weight: 600;
-    color: #2B2722;
+  }
+
+  .skipped-item {
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: rgba(216, 64, 64, 0.06);
+    border-left: 3px solid var(--red);
+    font-size: 12px;
+    color: var(--red);
+    line-height: 1.4;
+    animation: slideIn 0.3s ease;
+  }
+
+  .skipped-item.no-animate { animation: none; }
+
+  .skipped-feed::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .skipped-feed::-webkit-scrollbar-track { background: transparent; }
+
+  .skipped-feed::-webkit-scrollbar-thumb {
+    background: var(--gray-light);
+    border-radius: 3px;
+  }
+
+  /* Compare panel */
+  .compare-panel {
+    display: flex;
+    flex-direction: column;
+    background: #FFFFFF;
+    border-radius: 12px;
+    border: 1px solid var(--gray-light);
+    overflow: hidden;
+    flex: 1;
+    min-height: 0;
+  }
+
+  .compare-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-height: 0;
+  }
+
+  .compare-content.idle {
+    justify-content: center;
+    align-items: center;
+    color: var(--text-mute);
+    font-size: 12px;
+  }
+
+  .compare-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    animation: slideIn 0.3s ease;
+  }
+
+  .compare-row.no-animate { animation: none; }
+
+  .compare-model {
+    padding: 10px;
+    border-radius: 8px;
+    background: var(--gray-light);
+    border: 1px solid var(--gray);
+    font-size: 12px;
+    line-height: 1.4;
+    word-break: break-word;
+  }
+
+  .compare-model.gemini {
+    border-left: 3px solid var(--slate);
+  }
+
+  .compare-model.cartesia {
+    border-left: 3px solid var(--amber);
+  }
+
+  .compare-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-mute);
+    margin-bottom: 2px;
+  }
+
+  .compare-content::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .compare-content::-webkit-scrollbar-track { background: transparent; }
+
+  .compare-content::-webkit-scrollbar-thumb {
+    background: var(--gray-light);
+    border-radius: 3px;
+  }
+
+  /* Tools panel */
+  .tools-panel {
+    display: flex;
+    flex-direction: column;
+    background: #FFFFFF;
+    border-radius: 12px;
+    border: 1px solid var(--gray-light);
+    overflow: hidden;
+    flex: 1;
+    min-height: 0;
+  }
+
+  .tools-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-height: 0;
+  }
+
+  .tool-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .tool-group-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-mute);
+    margin-bottom: 2px;
+  }
+
+  .tool-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+
+  .tool-btn {
+    padding: 10px 12px;
+    border: 1px solid var(--gray);
+    border-radius: 8px;
+    background: #FFFFFF;
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 500;
+    font-family: 'Inter', sans-serif;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: center;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
-  .capability-card.active .capability-name {
-    color: #2B2722;
-    font-weight: 700;
+  .tool-btn:hover {
+    border-color: var(--amber);
+    background: rgba(184, 134, 11, 0.06);
   }
 
-  .capability-result {
-    font-size: 11px;
-    color: #D4CEC8;
-    line-height: 1.3;
-    word-break: break-word;
-    max-height: 60px;
-    overflow-y: auto;
-    font-style: italic;
+  .tool-btn:active {
+    transform: scale(0.95);
   }
 
-  .capability-card.active .capability-result {
-    color: var(--amber-text);
-    font-weight: 500;
-    font-style: normal;
+  .tool-btn.stop {
+    border-color: var(--red);
+    color: var(--red);
+    font-weight: 600;
   }
 
-  /* Sub-button containers within cards (for Dance and Express) */
-  .capability-sub-buttons {
+  .tool-btn.stop:hover {
+    background: rgba(216, 64, 64, 0.06);
+  }
+
+  .tool-btn:focus-visible {
+    outline: 2px solid var(--slate);
+    outline-offset: 2px;
+  }
+
+  .tool-subgroup {
     display: flex;
     flex-direction: column;
     gap: 6px;
   }
 
-  .capability-sub-row {
-    display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
-    justify-content: center;
+  .tool-subgroup-label {
+    font-size: 10px;
+    color: var(--text-mute);
+    font-weight: 500;
   }
 
-  .capability-btn {
-    flex: 1;
-    min-width: 50px;
-    padding: 8px 12px;
-    border: 1px solid #ECE8E2;
-    border-radius: 8px;
+  .tool-sub-buttons {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(60px, 1fr));
+    gap: 4px;
+  }
+
+  .tool-sub-btn {
+    padding: 8px 10px;
+    border: 1px solid var(--gray);
+    border-radius: 6px;
     background: #FFFFFF;
-    color: #2B2722;
+    color: var(--text);
     font-size: 11px;
     font-weight: 500;
     cursor: pointer;
     transition: all 0.2s ease;
-    font-family: 'Inter', sans-serif;
-    white-space: nowrap;
+    text-align: center;
   }
 
-  .capability-btn:hover {
-    border-color: #D4CEC8;
-    background: #F9F7F5;
+  .tool-sub-btn:hover {
+    border-color: var(--amber);
+    background: rgba(184, 134, 11, 0.06);
   }
 
-  .capability-btn:active {
-    transform: scale(0.95);
-    box-shadow: inset 0 2px 4px rgba(0,0,0,.1);
+  .tools-content::-webkit-scrollbar {
+    width: 6px;
   }
 
-  .capability-btn:focus-visible {
-    outline: 2px solid #4C8BF5;
-    outline-offset: 2px;
-  }
+  .tools-content::-webkit-scrollbar-track { background: transparent; }
 
-  .capability-btn.stop {
-    border-color: #FF6B5C;
-    color: #FF6B5C;
-    font-weight: 600;
-  }
-
-  .capability-btn.stop:hover {
-    background: #FFF5F3;
+  .tools-content::-webkit-scrollbar-thumb {
+    background: var(--gray-light);
+    border-radius: 3px;
   }
 
   /* Toast */
@@ -834,60 +812,73 @@
     right: 20px;
     padding: 12px 16px;
     border-radius: 8px;
-    background: #2B2722;
+    background: var(--text);
     color: #FFFFFF;
     font-size: 13px;
-    font-family: 'Space Mono', monospace;
-    box-shadow: 0 8px 24px rgba(0,0,0,.25);
+    font-family: 'JetBrains Mono', monospace;
+    box-shadow: 0 8px 24px rgba(0,0,0,.15);
     max-width: 300px;
     word-break: break-word;
     z-index: 1000;
-    animation: none;
-  }
-
-  .toast.animate-in {
-    animation: toastIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    animation: toastIn 0.3s ease;
   }
 
   @keyframes toastIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
 
-  .error-toast {
-    background: #C62828;
+  .toast.error-toast { background: var(--red); }
+
+  /* Responsive */
+  @media (max-width: 1200px) {
+    .main {
+      grid-template-columns: 1fr;
+      gap: 16px;
+    }
+
+    .col-left, .col-right {
+      gap: 12px;
+    }
   }
 
-  /* Scrollbar styling (general) */
-  ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
+  @media (max-width: 640px) {
+    header {
+      padding: 12px 16px;
+    }
 
-  ::-webkit-scrollbar-track {
-    background: transparent;
-  }
+    .header-title {
+      font-size: 16px;
+    }
 
-  ::-webkit-scrollbar-thumb {
-    background: #ECE8E2;
-    border-radius: 3px;
-  }
+    .robot-mark {
+      font-size: 20px;
+    }
 
-  ::-webkit-scrollbar-thumb:hover {
-    background: #D4CEC8;
-  }
+    .hero-label {
+      font-size: 24px;
+    }
 
-  /* Focus visible for accessibility */
-  button:focus-visible, .capability-btn:focus-visible {
-    outline: 2px solid #4C8BF5;
-    outline-offset: 2px;
+    .main {
+      padding: 12px 16px;
+      gap: 12px;
+    }
+
+    .panel-header {
+      font-size: 11px;
+      padding: 10px 12px;
+    }
+
+    .conversation-panel, .skipped-panel, .compare-panel, .tools-panel {
+      min-height: 200px;
+    }
+
+    .tool-buttons {
+      grid-template-columns: 1fr;
+    }
   }
 </style>
 </head>
 <body>
 
-<!-- Ambient gradient mesh for premium warmth -->
-<div class="ambient-mesh"></div>
-
 <div id="viewport">
-  <!-- Header -->
   <header>
     <div class="header-left">
       <div class="robot-mark">🤖</div>
@@ -899,21 +890,20 @@
     </div>
   </header>
 
-  <!-- Main content: two-column layout -->
   <div class="main">
-    <!-- Left column -->
     <div class="col-left">
-      <!-- Hero state orb -->
       <div class="hero-container">
-        <div class="orb-aura" id="orbAura"></div>
-        <div class="orb idle" id="stateOrb">
-          <div class="antenna antenna-left"></div>
-          <div class="antenna antenna-right"></div>
+        <div class="state-badge" id="stateBadge">🟢 IDLE</div>
+        <div class="orb-container">
+          <div class="signal-ring" id="signalRing"></div>
+          <div class="orb idle" id="stateOrb">
+            <div class="antenna antenna-left"></div>
+            <div class="antenna antenna-right"></div>
+          </div>
         </div>
         <div class="hero-label" id="heroLabel">Ready when you are</div>
       </div>
 
-      <!-- Pipeline rail with flowing connectors -->
       <div class="pipeline-rail" id="pipelineRail">
         <div class="pipeline-node" data-stage="hear">
           <div class="pipeline-icon">🎤</div>
@@ -946,72 +936,78 @@
         </div>
       </div>
 
-      <!-- Conversation -->
       <div class="conversation-panel">
         <div class="panel-header">💬 Conversation</div>
         <div class="conversation-feed idle" id="conversationFeed">Your turn</div>
       </div>
     </div>
 
-    <!-- Right column -->
     <div class="col-right">
-      <!-- Capabilities panel - merged and fills column -->
-      <div class="capabilities-panel">
-        <div class="panel-header">✨ Capabilities</div>
-        <div class="capabilities-grid" id="capabilitiesGrid">
-          <!-- Time -->
-          <div class="capability-card" data-tool="get_current_time">
-            <div class="capability-emoji">🕐</div>
-            <div class="capability-name">Time</div>
-            <div class="capability-result">—</div>
-          </div>
+      <div class="skipped-panel">
+        <div class="panel-header">🔇 Ignored</div>
+        <div class="skipped-feed idle" id="skippedFeed">Nothing missed</div>
+      </div>
 
-          <!-- Dance with sub-buttons -->
-          <div class="capability-card" data-tool="dance">
-            <div class="capability-emoji">💃</div>
-            <div class="capability-name">Dance</div>
-            <div class="capability-sub-buttons">
-              <div class="capability-sub-row">
-                <button class="capability-btn" onclick="callTool('dance', {})">Random</button>
-                <button class="capability-btn" onclick="callTool('dance', {move: 'zoo'})">🦁 Zoo</button>
-              </div>
-              <div class="capability-sub-row">
-                <button class="capability-btn" onclick="callTool('dance', {move: 'madagascar'})">🐵 Mad</button>
-                <button class="capability-btn" onclick="callTool('dance', {move: 'mcqueen'})">🏎️ McQ</button>
-              </div>
-              <div class="capability-sub-row">
-                <button class="capability-btn stop" onclick="callTool('stop', {})">🛑 Stop</button>
+      <div class="compare-panel">
+        <div class="panel-header">🔄 STT Compare</div>
+        <div class="compare-content idle" id="compareContent">—</div>
+      </div>
+
+      <div class="tools-panel">
+        <div class="panel-header">✨ Tools</div>
+        <div class="tools-content" id="toolsContent">
+          <div class="tool-group">
+            <div class="tool-group-label">Senses</div>
+            <div class="tool-buttons">
+              <button class="tool-btn" onclick="callTool('get_current_time', {})">🕐 Time</button>
+              <button class="tool-btn" onclick="callTool('get_weather', {location: 'Mumbai'})">🌤️ Weather</button>
+            </div>
+            <div class="tool-subgroup">
+              <div class="tool-subgroup-label">Info</div>
+              <div class="tool-sub-buttons">
+                <button class="tool-sub-btn" onclick="callTool('web_search', {query: 'latest news'})">Search</button>
+                <button class="tool-sub-btn" onclick="callTool('take_photo', {})">📸 Photo</button>
               </div>
             </div>
           </div>
 
-          <!-- Look Around -->
-          <div class="capability-card" data-tool="look_around">
-            <div class="capability-emoji">👀</div>
-            <div class="capability-name">Look Around</div>
-            <div class="capability-result">—</div>
+          <div class="tool-group">
+            <div class="tool-group-label">Motion & Dance</div>
+            <div class="tool-buttons">
+              <button class="tool-btn" onclick="callTool('dance', {})">💃 Random</button>
+              <button class="tool-btn" onclick="callTool('dance', {move: 'zoo'})">🦁 Zoo</button>
+            </div>
+            <div class="tool-sub-buttons">
+              <button class="tool-sub-btn" onclick="callTool('dance', {move: 'madagascar'})">Mad</button>
+              <button class="tool-sub-btn" onclick="callTool('dance', {move: 'mcqueen'})">McQ</button>
+            </div>
+            <div class="tool-sub-buttons" style="margin-top: 4px;">
+              <button class="tool-btn" onclick="callTool('look_around', {})">👀 Look</button>
+              <button class="tool-btn" onclick="callTool('look_and_describe', {})">👁️ See</button>
+            </div>
           </div>
 
-          <!-- See & Describe -->
-          <div class="capability-card" data-tool="look_and_describe">
-            <div class="capability-emoji">👁️</div>
-            <div class="capability-name">See & Describe</div>
-            <div class="capability-result">—</div>
+          <div class="tool-group">
+            <div class="tool-group-label">Voice & Utility</div>
+            <div class="tool-buttons">
+              <button class="tool-btn" onclick="callTool('set_volume', {level: 70})">🔊 70%</button>
+              <button class="tool-btn stop" onclick="callTool('stop', {})">🛑 Stop</button>
+            </div>
+            <div class="tool-sub-buttons">
+              <button class="tool-sub-btn" onclick="callTool('set_reminder', {minutes: 1, about: 'demo'})">⏰ Remind</button>
+              <button class="tool-sub-btn" onclick="callTool('sleep', {})">💤 Sleep</button>
+            </div>
           </div>
 
-          <!-- Express with emotion buttons -->
-          <div class="capability-card" data-tool="set_expression">
-            <div class="capability-emoji">😊</div>
-            <div class="capability-name">Express</div>
-            <div class="capability-sub-buttons">
-              <div class="capability-sub-row">
-                <button class="capability-btn" onclick="callTool('set_expression', {emotion: 'happy'})">Happy</button>
-                <button class="capability-btn" onclick="callTool('set_expression', {emotion: 'excited'})">Excited</button>
-              </div>
-              <div class="capability-sub-row">
-                <button class="capability-btn" onclick="callTool('set_expression', {emotion: 'curious'})">Curious</button>
-                <button class="capability-btn" onclick="callTool('set_expression', {emotion: 'surprised'})">Surprised</button>
-              </div>
+          <div class="tool-group">
+            <div class="tool-group-label">Express</div>
+            <div class="tool-buttons">
+              <button class="tool-btn" onclick="callTool('set_expression', {emotion: 'happy'})">😊 Happy</button>
+              <button class="tool-btn" onclick="callTool('set_expression', {emotion: 'excited'})">🤩 Excited</button>
+            </div>
+            <div class="tool-sub-buttons">
+              <button class="tool-sub-btn" onclick="callTool('set_expression', {emotion: 'curious'})">Curious</button>
+              <button class="tool-sub-btn" onclick="callTool('set_expression', {emotion: 'surprised'})">Surprised</button>
             </div>
           </div>
         </div>
@@ -1021,31 +1017,38 @@
 </div>
 
 <script>
-// Constants
+// ============================================================================
+// STATE & CONSTANTS
+// ============================================================================
+
 const TOOL_MAP = {
   get_current_time: 'Time',
   dance: 'Dance',
-  look_around: 'Look Around',
-  look_and_describe: 'See & Describe',
+  look_around: 'Look',
+  look_and_describe: 'See',
   set_expression: 'Express',
+  set_volume: 'Volume',
+  set_reminder: 'Remind',
+  take_photo: 'Photo',
+  get_weather: 'Weather',
+  web_search: 'Search',
+  sleep: 'Sleep',
   stop: 'Stop',
   ignore: 'Ignored'
 };
 
-const STAGE_COLOR_MAP = {
-  hear: 'hear',
-  think: 'think',
-  act: 'act',
-  speak: 'speak'
-};
-
-// State
 let live = false;
 let lastT = null;
 let currentTurn = { hear: null, think: null, act: null, speak: null, total: null };
 let hasConversation = false;
-let currentTurnIgnore = false;
-let danceActive = false; // Turn-scoped latch: don't override orb state while dancing
+let hasSkipped = false;
+let hasCompare = false;
+let currentState = 'idle';
+let danceActive = false;
+
+// ============================================================================
+// CONNECTION & STATE
+// ============================================================================
 
 function updateConnection(connected) {
   const pill = document.getElementById('connectionPill');
@@ -1061,20 +1064,36 @@ function updateConnection(connected) {
   }
 }
 
-function updateOrbAura(state) {
-  const aura = document.getElementById('orbAura');
-  if (!aura) return;
+function updateStateBadge(state) {
+  const badge = document.getElementById('stateBadge');
+  if (!badge) return;
 
-  aura.classList.remove('breathing', 'listen-pulse', 'think-pulse', 'speak-pulse', 'dance-pulse');
+  badge.classList.remove('asleep', 'idle', 'listening', 'thinking', 'speaking');
 
-  if (state === 'listening') {
-    aura.classList.add('listen-pulse');
+  if (state === 'asleep') {
+    badge.textContent = '🔴 ASLEEP';
+    badge.classList.add('asleep');
+  } else if (state === 'idle') {
+    badge.textContent = '🟢 IDLE';
+    badge.classList.add('idle');
+  } else if (state === 'listening') {
+    badge.textContent = '🟠 LISTENING';
+    badge.classList.add('listening');
   } else if (state === 'thinking') {
-    aura.classList.add('think-pulse');
+    badge.textContent = '🟣 THINKING';
+    badge.classList.add('thinking');
   } else if (state === 'speaking') {
-    aura.classList.add('speak-pulse');
-  } else if (state === 'dancing') {
-    aura.classList.add('dance-pulse');
+    badge.textContent = '🔵 SPEAKING';
+    badge.classList.add('speaking');
+  }
+}
+
+function updateSignalRing(active) {
+  const ring = document.getElementById('signalRing');
+  if (active) {
+    ring.classList.add('active');
+  } else {
+    ring.classList.remove('active');
   }
 }
 
@@ -1082,7 +1101,6 @@ function setStateOrb(stage) {
   const orb = document.getElementById('stateOrb');
   const label = document.getElementById('heroLabel');
 
-  // Don't override orb state if dancing (latch)
   if (danceActive && stage !== 'error' && stage !== 'dancing') {
     return;
   }
@@ -1095,86 +1113,93 @@ function setStateOrb(stage) {
   const isDancing = stage === 'dancing';
   const isError = stage === 'error';
 
+  currentState = 'idle';
+
   if (isListening) {
     orb.classList.add('listening');
     label.textContent = 'Listening…';
-    updateOrbAura('listening');
+    currentState = 'listening';
+    updateSignalRing(true);
   } else if (isThinking) {
     orb.classList.add('thinking');
     label.textContent = 'Thinking…';
-    updateOrbAura('thinking');
+    currentState = 'thinking';
+    updateSignalRing(true);
   } else if (isSpeaking) {
     orb.classList.add('speaking');
     label.textContent = 'Speaking…';
-    updateOrbAura('speaking');
+    currentState = 'speaking';
+    updateSignalRing(true);
   } else if (isDancing) {
     orb.classList.add('dancing');
     label.textContent = 'Dancing 🎵';
-    updateOrbAura('dancing');
+    currentState = 'dancing';
+    updateSignalRing(true);
     danceActive = true;
   } else if (isError) {
     orb.classList.add('error');
     label.textContent = 'Connection lost';
-    updateOrbAura('');
+    updateSignalRing(false);
     danceActive = false;
   } else {
     orb.classList.add('idle');
     label.textContent = 'Ready when you are';
-    updateOrbAura('');
+    currentState = 'idle';
+    updateSignalRing(false);
   }
+
+  updateStateBadge(currentState);
 }
 
+// ============================================================================
+// PIPELINE & LATENCY
+// ============================================================================
+
 function highlightPipelineNode(stageKey) {
-  document.querySelectorAll('.pipeline-node').forEach(n => n.classList.remove('active', 'hear', 'think', 'act', 'speak'));
+  document.querySelectorAll('.pipeline-node').forEach(n => n.classList.remove('active'));
   if (stageKey) {
-    const colorKey = STAGE_COLOR_MAP[stageKey];
-    if (colorKey) {
-      const node = document.querySelector(`.pipeline-node[data-stage="${stageKey}"]`);
-      if (node) {
-        node.classList.add('active', colorKey);
-      }
-    }
+    const node = document.querySelector(`.pipeline-node[data-stage="${stageKey}"]`);
+    if (node) node.classList.add('active');
   }
 }
 
 function triggerPipelineLight(stageKey) {
-  // Calculate which connector to light based on stage
   const stages = ['hear', 'think', 'act', 'speak', 'total'];
   const fromIdx = stages.indexOf(stageKey);
-  if (fromIdx < 0) return;
+  if (fromIdx < 0 || fromIdx === stages.length - 1) return;
 
-  // Light travels from this stage's connector forward
-  const connectors = document.querySelectorAll('.pipeline-connector');
-  if (fromIdx === stages.length - 1) return; // Total stage, no connector ahead
-
-  const connector = connectors[fromIdx];
+  const connector = document.querySelectorAll('.pipeline-connector')[fromIdx];
   if (!connector) return;
 
-  // Activate the connector's glow
   connector.classList.add('active');
+  setTimeout(() => connector.classList.remove('active'), 1200);
+}
 
-  // Create and animate a light particle
-  const light = document.createElement('div');
-  light.className = 'pipeline-light';
-  light.style.animationDuration = '1.2s';
-  connector.appendChild(light);
-
-  // Remove after animation
-  setTimeout(() => {
-    light.remove();
-    connector.classList.remove('active');
-  }, 1200);
+function getLatencyClass(ms) {
+  if (ms < 500) return 'fast';
+  if (ms < 1500) return 'medium';
+  return 'slow';
 }
 
 function setPipelineLatency(stageKey, ms) {
   if (ms === null || ms === undefined) return;
   const latencyEl = document.querySelector(`.pipeline-latency[data-latency="${stageKey}"]`);
-  if (latencyEl) latencyEl.textContent = `${ms}ms`;
+  if (latencyEl) {
+    latencyEl.textContent = `${ms}ms`;
+    latencyEl.className = `pipeline-latency ${getLatencyClass(ms)}`;
+  }
 }
 
 function resetPipelineLatencies() {
-  document.querySelectorAll('.pipeline-latency').forEach(el => el.textContent = '—');
+  document.querySelectorAll('.pipeline-latency').forEach(el => {
+    el.textContent = '—';
+    el.className = 'pipeline-latency';
+  });
 }
+
+// ============================================================================
+// TOOL CALLING
+// ============================================================================
 
 function callTool(name, params = {}) {
   const queryParts = [`name=${encodeURIComponent(name)}`];
@@ -1194,18 +1219,18 @@ function callTool(name, params = {}) {
       showToast(text.trim() || `${name} ok`);
     })
     .catch(err => {
-      showToast(`Error: ${err.message}`);
+      showToast(`Error: ${err.message}`, true);
     });
 }
 
 function showToast(message, isError = false, isReplay = false) {
-  if (isReplay) return; // Don't animate toasts on replay
+  if (isReplay) return;
 
   const existing = document.querySelector('.toast');
   if (existing) existing.remove();
 
   const toast = document.createElement('div');
-  toast.className = isError ? 'toast error-toast animate-in' : 'toast animate-in';
+  toast.className = isError ? 'toast error-toast' : 'toast';
   toast.textContent = message;
   document.body.appendChild(toast);
 
@@ -1215,6 +1240,10 @@ function showToast(message, isError = false, isReplay = false) {
     setTimeout(() => toast.remove(), 300);
   }, 3000);
 }
+
+// ============================================================================
+// CONVERSATION & FEEDS
+// ============================================================================
 
 function addConversationMessage(role, text, isReplay = false) {
   const feed = document.getElementById('conversationFeed');
@@ -1250,88 +1279,103 @@ function addToolChip(text, isReplay = false) {
   chip.className = 'tool-chip';
   if (isReplay) chip.classList.add('no-animate');
 
-  // Humanize the tool result
-  const humanized = humanizeToolResult(text.split('(')[0].trim(), text);
+  const toolName = (text + '').split('(')[0].trim();
+  const humanized = humanizeToolResult(toolName, text);
   chip.textContent = humanized;
 
   feed.appendChild(chip);
   feed.scrollTop = feed.scrollHeight;
 }
 
-function addIgnoreChip(isReplay = false) {
-  const feed = document.getElementById('conversationFeed');
-  if (!hasConversation) {
-    hasConversation = true;
+function addSkippedItem(text, isReplay = false) {
+  const feed = document.getElementById('skippedFeed');
+
+  if (!hasSkipped) {
+    hasSkipped = true;
     feed.classList.remove('idle');
     feed.innerHTML = '';
   }
 
-  const chip = document.createElement('div');
-  chip.className = 'ignore-chip';
-  if (isReplay) chip.classList.add('no-animate');
-  chip.textContent = 'Stayed quiet';
-  feed.appendChild(chip);
+  const item = document.createElement('div');
+  item.className = 'skipped-item';
+  if (isReplay) item.classList.add('no-animate');
+
+  item.textContent = text;
+  feed.appendChild(item);
   feed.scrollTop = feed.scrollHeight;
 }
 
+function addCompareRow(gemini, cartesia, isReplay = false) {
+  const content = document.getElementById('compareContent');
+
+  if (!hasCompare) {
+    hasCompare = true;
+    content.classList.remove('idle');
+    content.innerHTML = '';
+  }
+
+  const row = document.createElement('div');
+  row.className = 'compare-row';
+  if (isReplay) row.classList.add('no-animate');
+
+  const geminiDiv = document.createElement('div');
+  geminiDiv.className = 'compare-model gemini';
+  geminiDiv.innerHTML = `<div class="compare-label">Gemini</div><div>${gemini}</div>`;
+
+  const cartesiaDiv = document.createElement('div');
+  cartesiaDiv.className = 'compare-model cartesia';
+  cartesiaDiv.innerHTML = `<div class="compare-label">Cartesia</div><div>${cartesia}</div>`;
+
+  row.appendChild(geminiDiv);
+  row.appendChild(cartesiaDiv);
+  content.appendChild(row);
+  content.scrollTop = content.scrollHeight;
+}
+
 function humanizeToolResult(toolName, text) {
-  // Parse text like "get_current_time(Thursday, June 19 2025, 02:15 PM)" or "dance(Zoo)"
-  // and return a humanized version (warm, end-user POV, no jargon)
   const match = text.match(/^([^(]+)\((.*?)\)$/);
   if (!match) return text;
-
   const [, func, detail] = match;
 
   switch (func) {
     case 'get_current_time':
-      return `Checked the time: ${detail}`;
+      return `📅 Checked time: ${detail}`;
+    case 'get_weather':
+      return `🌤️ Weather checked`;
+    case 'web_search':
+      return `🔍 Searched news`;
     case 'dance':
-      // Drop "· 129bpm · 192s" detail from dance results
       const danceMove = detail.split('·')[0].trim();
-      return `Danced ${danceMove}`;
+      return `💃 Danced ${danceMove}`;
     case 'look_around':
-      return 'Looked around';
+      return '👀 Looked around';
     case 'look_and_describe':
-      return `Saw: ${detail}`;
+      return `👁️ Saw: ${detail}`;
     case 'set_expression':
-      // Return friendly format like "Happy 😊"
       const emotion = detail.charAt(0).toUpperCase() + detail.slice(1).toLowerCase();
       const emojiMap = {
         'Happy': '😊', 'Excited': '🤩', 'Curious': '🤔', 'Surprised': '😲'
       };
       const emoji = emojiMap[emotion] || '😊';
       return `${emotion} ${emoji}`;
+    case 'take_photo':
+      return '📸 Took a photo';
+    case 'set_volume':
+      return `🔊 Volume set`;
+    case 'set_reminder':
+      return `⏰ Reminder set`;
+    case 'sleep':
+      return `💤 Going to sleep`;
     case 'stop':
-      return 'Stopped';
-    case 'ignore':
-      return 'Stayed quiet';
+      return '🛑 Stopped';
     default:
       return detail || func;
   }
 }
 
-function activateCapability(toolName, resultText, isReplay = false) {
-  const card = document.querySelector(`.capability-card[data-tool="${toolName}"]`);
-  if (!card) return;
-
-  card.classList.add('active');
-  const resultEl = card.querySelector('.capability-result');
-  if (resultEl) {
-    const humanized = humanizeToolResult(toolName, resultText);
-    resultEl.textContent = humanized.substring(0, 100);
-  }
-
-  // Celebrate: brief glow on non-replay
-  if (!isReplay) {
-    card.style.animation = 'none';
-    setTimeout(() => {
-      card.style.animation = 'card-celebrate 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)';
-    }, 10);
-  }
-
-  // Don't remove active class; keep showing result
-  // Only remove after a long timeout or on next turn
-}
+// ============================================================================
+// EVENT HANDLING
+// ============================================================================
 
 function onLiveEvent(eventData, isReplay) {
   let stage = eventData.stage;
@@ -1340,30 +1384,23 @@ function onLiveEvent(eventData, isReplay) {
   let t = eventData.t;
 
   if (!t) t = Date.now();
-
   lastT = t;
 
-  // Reset on hearing (new turn)
+  // New turn
   if (stage === 'hearing') {
     currentTurn = { hear: null, think: null, act: null, speak: null, total: null };
     resetPipelineLatencies();
-    currentTurnIgnore = false;
-    danceActive = false; // Clear dance latch only when new turn starts
-
-    // Clear capability active states
-    document.querySelectorAll('.capability-card.active').forEach(card => {
-      card.classList.remove('active');
-    });
+    danceActive = false;
   }
 
-  // Map SSE stage to our pipeline stage for coloring
+  // Map stages to pipeline
   let stageKey = null;
   if (stage === 'transcribed') stageKey = 'hear';
   else if (stage === 'reply') stageKey = 'think';
   else if (stage === 'tool') stageKey = 'act';
   else if (stage === 'speaking') stageKey = 'speak';
 
-  // Update latency for this stage
+  // Update latencies
   if (stage === 'transcribed' && typeof ms === 'number') {
     currentTurn.hear = ms;
     setPipelineLatency('hear', ms);
@@ -1384,7 +1421,7 @@ function onLiveEvent(eventData, isReplay) {
   if (!isReplay) {
     live = true;
 
-    // Update state orb and pipeline highlighting
+    // Update orb and pipeline
     if (stage === 'tool') {
       const toolName = (text + '').split('(')[0].trim();
       if (toolName === 'dance') {
@@ -1402,40 +1439,48 @@ function onLiveEvent(eventData, isReplay) {
     }
 
     if (stage === 'done') {
-      danceActive = false; // Clear dance latch on turn completion
-      // Remove active glow from capability cards but keep their result text
-      document.querySelectorAll('.capability-card.active').forEach(card => {
-        card.classList.remove('active');
-      });
+      danceActive = false;
       setTimeout(() => highlightPipelineNode(null), 800);
     }
   }
 
-  // Update UI based on stage
+  // UI updates
   if (stage === 'transcribed' && text) {
     addConversationMessage('user', text, isReplay);
   } else if (stage === 'reply' && text) {
     addConversationMessage('robot', text, isReplay);
   } else if (stage === 'tool' && text) {
     const toolName = (text + '').split('(')[0].trim();
-    // Skip double-chip for ignore
     if (toolName !== 'ignore') {
       addToolChip(text, isReplay);
-      activateCapability(toolName, text, isReplay);
-    } else {
-      currentTurnIgnore = true;
+    }
+  } else if (stage === 'skipped' && text) {
+    addSkippedItem(text, isReplay);
+  } else if (stage === 'compare' && text) {
+    const parts = text.split('|').map(p => p.trim());
+    if (parts.length === 2) {
+      addCompareRow(parts[0], parts[1], isReplay);
     }
   } else if (stage === 'error' && text) {
     if (!isReplay) {
-      showToast(`Connection error: ${text}`, true, isReplay);
+      showToast(`Error: ${text}`, true);
     }
     setStateOrb('error');
-  } else if (stage === 'done' && currentTurnIgnore) {
-    addIgnoreChip(isReplay);
   }
 }
 
+// ============================================================================
+// LIVE CONNECTION & FALLBACK DEMO
+// ============================================================================
+
 function connectLive() {
+  // Fallback demo on file://
+  if (location.protocol === 'file:') {
+    console.log('Fallback: running canned demo on file://');
+    runDemo();
+    return;
+  }
+
   if (typeof EventSource === 'undefined') {
     updateConnection(false);
     return;
@@ -1478,7 +1523,36 @@ function connectLive() {
   }
 }
 
-// Initialize
+function runDemo() {
+  updateConnection(true);
+
+  const sequence = [
+    { stage: 'listening', text: '', ms: null, delay: 500 },
+    { stage: 'hearing', text: '', ms: null, delay: 400 },
+    { stage: 'transcribing', text: '', ms: null, delay: 300 },
+    { stage: 'transcribed', text: 'what\'s the time?', ms: 450, delay: 400 },
+    { stage: 'thinking', text: '', ms: null, delay: 300 },
+    { stage: 'reply', text: 'It\'s currently Thursday, June 19th, 2:15 PM.', ms: 1200, delay: 600 },
+    { stage: 'tool', text: 'get_current_time(Thursday, June 19 2025, 02:15 PM)', ms: null, delay: 400 },
+    { stage: 'speaking', text: '', ms: 950, delay: 1200 },
+    { stage: 'done', text: '', ms: 2800, delay: 500 },
+    { stage: 'skipped', text: 'background noise · filtered', ms: null, delay: 400 },
+    { stage: 'compare', text: 'what\'s the time | what is the time', ms: null, delay: 300 }
+  ];
+
+  let time = 0;
+  sequence.forEach((event, idx) => {
+    setTimeout(() => {
+      onLiveEvent(event, true);
+    }, time);
+    time += event.delay;
+  });
+}
+
+// ============================================================================
+// INIT
+// ============================================================================
+
 window.addEventListener('DOMContentLoaded', connectLive);
 </script>
 
