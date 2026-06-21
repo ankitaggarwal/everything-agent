@@ -11,6 +11,7 @@ import asyncio
 from google import genai
 from google.genai import types
 
+from . import memory as memory_mod
 from . import tools as tools_mod
 
 _DEFAULT_PERSONA = (
@@ -35,7 +36,9 @@ _TOOL_HINT = (
     "temperature, or forecast; web_search(query) for news, current events, sports, prices, or "
     "ANY fact you might not know or that could be out of date -- search instead of guessing; "
     "set_volume(level) to get louder or quieter; set_reminder(minutes, about) for timers and "
-    "reminders; take_photo() when asked for a picture or selfie. "
+    "reminders; take_photo() when asked for a picture or selfie; remember(fact) to save a "
+    "detail about the user (name, preferences, 'remember that...'), and recall(query) to look "
+    "up what you know about them. "
     "When the user says go to sleep, stand "
     "by, be quiet for a while, or goodbye, call sleep() and give a short goodnight. Only call "
     "ignore() if the speech clearly was not meant for you and needs no reply."
@@ -52,7 +55,8 @@ class Brain:
         self.client = genai.Client(api_key=g["api_key"])
         self.history: list[types.Content] = []
         self.ctx = {"ignored": False, "sleep": False}
-        self.tools = tools_mod.build_tools(body, self.ctx, cfg) if body is not None else []
+        self.memory = memory_mod.Memory(cfg)
+        self.tools = tools_mod.build_tools(body, self.ctx, cfg, self.memory) if body is not None else []
         self.ignored = False  # did the model choose to stay silent this turn?
         self.slept = False    # did the model call sleep() this turn?
 
@@ -63,6 +67,22 @@ class Brain:
         self.ignored = False
         self.slept = False
         self.history.append(types.Content(role="user", parts=[types.Part(text=text)]))
+
+        # Auto-recall: fetch memories relevant to what was said and give them to the
+        # brain, so it answers as someone who knows you. Capped so a slow mem0 call
+        # can never freeze the turn.
+        mem_context = ""
+        if self.memory.enabled and self.memory.auto_recall:
+            try:
+                loop = asyncio.get_running_loop()
+                mems = await asyncio.wait_for(
+                    loop.run_in_executor(None, self.memory.search, text), timeout=2.5)
+                if mems:
+                    mem_context = ("\n\nThings you remember about this person (use naturally, "
+                                   "don't recite): " + "; ".join(mems[:5]) + ".")
+            except Exception:
+                mem_context = ""
+
         reply = None
         for attempt in range(3):
             try:
@@ -70,7 +90,7 @@ class Brain:
                     model=self.model,
                     contents=self.history,
                     config=types.GenerateContentConfig(
-                        system_instruction=self.persona + _TOOL_HINT,
+                        system_instruction=self.persona + _TOOL_HINT + mem_context,
                         thinking_config=types.ThinkingConfig(thinking_budget=0),  # thinking OFF
                         max_output_tokens=self.max_tokens,
                         tools=self.tools,
@@ -97,6 +117,9 @@ class Brain:
             self.history.append(types.Content(role="model", parts=[types.Part(text=reply)]))
             if len(self.history) > self.max_turns * 2:
                 self.history = self.history[-self.max_turns * 2:]
+            # Auto-save: let mem0 extract anything worth keeping from this exchange (bg).
+            if self.memory.auto_save:
+                self.memory.add_turn(text, reply)
         else:
             self.history.pop()
         return reply

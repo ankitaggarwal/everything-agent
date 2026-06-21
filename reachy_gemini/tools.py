@@ -65,8 +65,8 @@ def _goto_sleep(robot) -> None:
         print(f"[tool] goto_sleep failed: {e}", flush=True)
 
 
-def build_tools(body, ctx: dict, cfg: dict | None = None) -> list:
-    """Return the tool callables, closing over the robot body, shared ctx, and config."""
+def build_tools(body, ctx: dict, cfg: dict | None = None, memory=None) -> list:
+    """Return the tool callables, closing over the robot body, shared ctx, config, memory."""
     robot = getattr(body, "robot", None)
     tracks = sorted(glob.glob(str(_MUSIC_DIR / "*.mp3")))
     try:
@@ -395,6 +395,26 @@ def build_tools(body, ctx: dict, cfg: dict | None = None) -> list:
             _emit("take_photo", "error", t0)
             return "I couldn't take the photo just now."
 
+    def remember(fact: str) -> str:
+        """Save something about the user to long-term memory so you recall it in future
+        conversations. Call when they tell you their name, preferences, facts about
+        themselves, or say 'remember that ...'. Pass a concise fact in third person,
+        e.g. 'The user's name is Ankit' or 'The user likes jazz'."""
+        t0 = time.monotonic()
+        ok = bool(memory and memory.remember(fact))
+        _emit("remember", (fact[:32] if ok else "unavailable"), t0)
+        return "Got it — I'll remember that." if ok else "I couldn't save that just now."
+
+    def recall(query: str) -> str:
+        """Look up what you know about the user from long-term memory. Call when they ask
+        what you remember, or when knowing a saved detail (their name, preferences) would
+        help your answer."""
+        t0 = time.monotonic()
+        mems = memory.search(query) if memory else []
+        _emit("recall", f"{len(mems)} hit(s)", t0)
+        return ("Here's what I remember: " + "; ".join(mems)) if mems else \
+            "I don't have anything saved about that yet."
+
     def ignore() -> str:
         """Stay completely silent and do NOT respond. Call this when the speech was clearly
         not addressed to you, was background chatter, or simply needs no reply at all."""
@@ -414,6 +434,9 @@ def build_tools(body, ctx: dict, cfg: dict | None = None) -> list:
         _emit("sleep", "going dormant", t0)
         return "Going to sleep now — say 'Reachy' or 'wake up' when you need me."
 
-    return [get_current_time, get_weather, web_search, set_volume, set_reminder,
-            take_photo, set_expression, look_around, dance, stop, look_and_describe,
-            ignore, sleep]
+    tools = [get_current_time, get_weather, web_search, set_volume, set_reminder,
+             take_photo, set_expression, look_around, dance, stop, look_and_describe,
+             ignore, sleep]
+    if memory and memory.enabled:
+        tools[1:1] = [remember, recall]   # expose memory tools only when mem0 is configured
+    return tools

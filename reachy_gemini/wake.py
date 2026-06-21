@@ -28,12 +28,13 @@ import time
 # (Cartesia hears "Richie") -- confirmed live by the dual-STT compare. The -hi ending
 # catches "riddhi" specifically.
 _WAKE_RE = re.compile(
-    r"\b(?:reach|reech|rich|ritch|leech|ridd|riddh|redd|ridh)(?:y|ie|i|ey|ee|ies|hi)\b",
+    r"\b(?:reach|reech|rich|ritch|leech|ridd|riddh|redd|ridh)(?:y|ie|i|ey|ee|ies|hi|ing|in)\b",
     re.IGNORECASE,
 )
 # Full name-variants STT writes whole (these don't fit the stem+ending shape above).
+# "reaching"/"reachin" are real Gemini mis-hears of "Reachy" (seen live).
 _WAKE_EXACT = {"reachy", "reachie", "reachi", "richie", "ritchie", "reechy",
-               "reacher", "richy", "leechy", "reachey", "riche",
+               "reacher", "richy", "leechy", "reachey", "riche", "reaching", "reachin",
                "riddhi", "riddy", "reddy", "ridhi", "reddi", "reedy", "riddhe"}
 
 # Phrases that wake it specifically out of sleep.

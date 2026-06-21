@@ -47,6 +47,14 @@ dance:
 weather:
   default_location: "New Delhi"
 
+# Long-term memory via mem0 (so Reachy remembers you across sessions). The api_key is a
+# SECRET -> config.local.yaml (or set it from the dashboard ⚙ Config tab). No Upstash needed.
+mem0:
+  api_key: ""              # leave blank -> config.local.yaml
+  auto_recall: true        # fetch relevant memories before each reply (it answers knowing you)
+  auto_save: true          # after each turn, let mem0 extract what's worth remembering
+  user_id: "default_user"  # later: the recognized person's name (face/voice), so memory is per-person
+
 # Where the voice goes in and comes out.
 #   local  -> this laptop's mic + speakers (sounddevice), no robot motion. For dev.
 #   reachy -> the Reachy Mini robot's mic + speaker + head/antenna motion.
