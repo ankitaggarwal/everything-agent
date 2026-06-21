@@ -1,16 +1,19 @@
 [project]
 name = "reachy-gemini"
 version = "0.1.0"
-description = "A tiny full-duplex voice agent: your voice <-> Gemini Live <-> a Reachy Mini robot."
+description = "A voice agent for the Reachy Mini robot: STT to Gemini to TTS, with tools, memory, and a live dashboard."
 requires-python = ">=3.10"
 dependencies = [
     "google-genai>=2.8.0",
     "numpy>=1.26",
     "PyYAML>=6",
+    "cartesia>=3.0",      # Sonic TTS + Ink-Whisper STT
+    "Pillow>=10",         # camera frames for the vision + photo tools
 ]
 
 [project.optional-dependencies]
 laptop = ["sounddevice>=0.4.6"]   # mic/speaker on a dev machine
+memory = ["mem0ai>=2.0"]          # long-term memory (mem0)
 
 [project.scripts]
 reachy-gemini = "reachy_gemini.__main__:main"

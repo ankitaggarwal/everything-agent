@@ -1,6 +1,11 @@
-# Core (laptop + robot). Audio I/O is sounddevice on both; the robot also has the
-# reachy_mini SDK (preinstalled in its venv) for head/antenna motion.
-google-genai>=2.8.0
+# Core (laptop + robot). Audio I/O is sounddevice on the laptop; the robot also has
+# the reachy_mini SDK (preinstalled in its venv) for head/antenna motion + media.
+google-genai>=2.8.0      # STT + text brain + vision + web-search grounding
+cartesia>=3.0            # Sonic TTS + Ink-Whisper STT
 numpy>=1.26
 PyYAML>=6
-sounddevice>=0.4.6
+Pillow>=10               # camera frames for the vision + photo tools
+sounddevice>=0.4.6       # laptop mic/speaker (not used on the robot)
+
+# Optional: long-term memory across sessions
+mem0ai>=2.0
