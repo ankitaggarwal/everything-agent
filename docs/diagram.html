@@ -72,6 +72,49 @@
     margin-left: 8px;
   }
 
+  .header-right { display: flex; align-items: center; gap: 10px; }
+  .config-gear {
+    width: 34px; height: 34px; border-radius: 10px; border: 1px solid var(--gray);
+    background: var(--gray-light); color: var(--text-mute); font-size: 16px;
+    cursor: pointer; line-height: 1; transition: all 0.2s ease;
+  }
+  .config-gear:hover { color: var(--text); border-color: var(--amber); transform: rotate(45deg); }
+
+  /* --- config modal --- */
+  .modal-backdrop {
+    position: fixed; inset: 0; background: rgba(30,34,40,0.45); backdrop-filter: blur(3px);
+    display: flex; align-items: center; justify-content: center; z-index: 100; padding: 20px;
+  }
+  .modal-backdrop[hidden] { display: none; }
+  .modal {
+    background: #fff; border-radius: 18px; width: min(560px, 100%); max-height: 88vh;
+    overflow-y: auto; padding: 24px 26px; box-shadow: 0 24px 60px rgba(0,0,0,0.22);
+  }
+  .modal-head { display: flex; align-items: center; justify-content: space-between; }
+  .modal-head h2 { margin: 0; font-size: 20px; color: var(--text); }
+  .modal-close {
+    border: none; background: none; font-size: 18px; color: var(--text-mute); cursor: pointer;
+    width: 30px; height: 30px; border-radius: 8px;
+  }
+  .modal-close:hover { background: var(--gray-light); color: var(--text); }
+  .modal-note { font-size: 12.5px; color: var(--text-mute); margin: 8px 0 18px; line-height: 1.5; }
+  .modal-note code { background: var(--gray-light); padding: 1px 5px; border-radius: 5px; }
+  .cfg-grid { display: flex; flex-direction: column; gap: 14px; }
+  .cfg-field label { display: block; font-size: 12px; font-weight: 600; color: var(--text); margin-bottom: 5px; }
+  .cfg-field .cfg-cur { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-mute); font-weight: 400; }
+  .cfg-field input {
+    width: 100%; box-sizing: border-box; padding: 9px 11px; border: 1px solid var(--gray);
+    border-radius: 9px; font-size: 13px; font-family: 'JetBrains Mono', monospace; color: var(--text);
+  }
+  .cfg-field input:focus { outline: none; border-color: var(--amber); }
+  .modal-actions { display: flex; align-items: center; gap: 10px; margin-top: 22px; }
+  .cfg-status { flex: 1; font-size: 12.5px; color: var(--text-mute); }
+  .cfg-btn { padding: 9px 16px; border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer; border: 1px solid var(--gray); }
+  .cfg-btn.ghost { background: #fff; color: var(--text-mute); }
+  .cfg-btn.ghost:hover { color: var(--text); border-color: var(--text-mute); }
+  .cfg-btn.primary { background: var(--amber); color: #fff; border-color: var(--amber); }
+  .cfg-btn.primary:hover { filter: brightness(1.07); }
+
   .connection-pill {
     display: flex;
     align-items: center;
@@ -884,11 +927,32 @@
       <div class="robot-mark">🤖</div>
       <h1 class="header-title">Reachy Mini <span class="header-subtitle">live</span></h1>
     </div>
-    <div class="connection-pill" id="connectionPill">
-      <span class="connection-dot"></span>
-      <span id="connectionText">connecting…</span>
+    <div class="header-right">
+      <div class="connection-pill" id="connectionPill">
+        <span class="connection-dot"></span>
+        <span id="connectionText">connecting…</span>
+      </div>
+      <button class="config-gear" id="configGear" onclick="openConfig()" title="Keys & config" aria-label="Open config">⚙</button>
     </div>
   </header>
+
+  <!-- Config modal: view/update API keys (mem0, Upstash, Gemini, Cartesia) -->
+  <div class="modal-backdrop" id="configModal" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="cfgTitle">
+      <div class="modal-head">
+        <h2 id="cfgTitle">⚙ Keys &amp; Config</h2>
+        <button class="modal-close" onclick="closeConfig()" aria-label="Close">✕</button>
+      </div>
+      <p class="modal-note">Stored only on the robot in <code>config.local.yaml</code> (never committed).
+        Leave a field blank to keep its current value. Saved keys apply after a restart.</p>
+      <div class="cfg-grid" id="cfgGrid"><!-- fields injected by renderConfigFields() --></div>
+      <div class="modal-actions">
+        <span class="cfg-status" id="cfgStatus"></span>
+        <button class="cfg-btn ghost" onclick="restartApp()">Restart app</button>
+        <button class="cfg-btn primary" onclick="saveConfig()">Save keys</button>
+      </div>
+    </div>
+  </div>
 
   <div class="main">
     <div class="col-left">
@@ -1471,6 +1535,70 @@ function onLiveEvent(eventData, isReplay) {
 
 // ============================================================================
 // LIVE CONNECTION & FALLBACK DEMO
+// ============================================================================
+// Config modal: view (masked) + update API keys, then restart to apply.
+// ============================================================================
+const CFG_FIELDS = [
+  { key: 'mem0_api_key', label: 'mem0 API key', ph: 'm0-…' },
+  { key: 'upstash_vector_rest_url', label: 'Upstash Vector — REST URL', ph: 'https://…upstash.io' },
+  { key: 'upstash_vector_rest_token', label: 'Upstash Vector — REST token', ph: 'token' },
+  { key: 'upstash_redis_rest_url', label: 'Upstash Redis — REST URL (optional)', ph: 'https://…upstash.io' },
+  { key: 'upstash_redis_rest_token', label: 'Upstash Redis — REST token (optional)', ph: 'token' },
+  { key: 'gemini_api_key', label: 'Gemini API key', ph: 'AIza…' },
+  { key: 'cartesia_api_key', label: 'Cartesia API key', ph: 'sk_car_…' },
+];
+
+function openConfig() {
+  document.getElementById('configModal').hidden = false;
+  renderConfigFields({});
+  document.getElementById('cfgStatus').textContent = 'Loading current keys…';
+  fetch('/config').then(r => r.json()).then(renderConfigFields)
+    .then(() => { document.getElementById('cfgStatus').textContent = ''; })
+    .catch(() => { document.getElementById('cfgStatus').textContent = 'Offline preview — open on the robot to edit.'; });
+}
+function closeConfig() { document.getElementById('configModal').hidden = true; }
+
+function renderConfigFields(status) {
+  const grid = document.getElementById('cfgGrid');
+  grid.innerHTML = CFG_FIELDS.map(f => {
+    const st = (status && status[f.key]) || {};
+    const cur = st.set ? `set · ${st.hint}` : 'not set';
+    return `<div class="cfg-field">
+      <label>${f.label} <span class="cfg-cur">(${cur})</span></label>
+      <input type="password" autocomplete="off" id="cfg_${f.key}" placeholder="${f.ph}">
+    </div>`;
+  }).join('');
+}
+
+function saveConfig() {
+  const body = {};
+  CFG_FIELDS.forEach(f => {
+    const v = (document.getElementById('cfg_' + f.key) || {}).value;
+    if (v && v.trim()) body[f.key] = v.trim();
+  });
+  const status = document.getElementById('cfgStatus');
+  if (!Object.keys(body).length) { status.textContent = 'Nothing to save — fields were blank.'; return; }
+  status.textContent = 'Saving…';
+  fetch('/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+    .then(r => r.json())
+    .then(res => {
+      status.textContent = `Saved ${(res.written || []).length} key(s). Restart to apply.`;
+      openConfig();  // refresh masked status
+    })
+    .catch(() => { status.textContent = 'Save failed — are you on the robot page?'; });
+}
+
+function restartApp() {
+  const status = document.getElementById('cfgStatus');
+  status.textContent = 'Restarting the app…';
+  fetch('/restart', { method: 'POST' })
+    .then(r => r.json())
+    .then(() => { status.textContent = 'Restarting — the page will reconnect in a few seconds.'; })
+    .catch(() => { status.textContent = 'Restart request failed.'; });
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeConfig(); });
+
 // ============================================================================
 
 function connectLive() {

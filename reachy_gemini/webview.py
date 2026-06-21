@@ -21,6 +21,63 @@ from pathlib import Path
 from . import events
 
 _DIAGRAM = Path(__file__).resolve().parent.parent / "docs" / "diagram.html"
+_CONFIG_LOCAL = Path(__file__).resolve().parent.parent / "config.local.yaml"
+
+# Keys the config tab can manage: flat UI field -> (section, key) in config.local.yaml.
+# NOTE: this is an UNAUTHENTICATED LAN endpoint -- fine for a personal robot on a home
+# network, but it can read (masked) and write secrets. Values are never returned in full.
+_CONFIG_FIELDS = {
+    "gemini_api_key": ("gemini", "api_key"),
+    "cartesia_api_key": ("cartesia", "api_key"),
+    "mem0_api_key": ("mem0", "api_key"),
+    "upstash_vector_rest_url": ("upstash", "vector_rest_url"),
+    "upstash_vector_rest_token": ("upstash", "vector_rest_token"),
+    "upstash_redis_rest_url": ("upstash", "redis_rest_url"),
+    "upstash_redis_rest_token": ("upstash", "redis_rest_token"),
+}
+
+
+def _read_local() -> dict:
+    if not _CONFIG_LOCAL.exists():
+        return {}
+    try:
+        import yaml
+        return yaml.safe_load(_CONFIG_LOCAL.read_text()) or {}
+    except Exception:
+        return {}
+
+
+def _mask(value: str) -> str:
+    if not value:
+        return ""
+    v = str(value)
+    return ("•" * 4 + v[-4:]) if len(v) > 4 else "•" * len(v)
+
+
+def _config_status() -> dict:
+    """Per field: whether it's set + a masked hint. Never the real value."""
+    local = _read_local()
+    out = {}
+    for flat, (sec, key) in _CONFIG_FIELDS.items():
+        val = (local.get(sec) or {}).get(key, "")
+        out[flat] = {"set": bool(val), "hint": _mask(val)}
+    return out
+
+
+def _save_config(updates: dict) -> list:
+    """Merge non-empty updates into config.local.yaml. Returns the fields actually written."""
+    import yaml
+    local = _read_local()
+    written = []
+    for flat, value in (updates or {}).items():
+        if flat not in _CONFIG_FIELDS or not str(value).strip():
+            continue  # unknown field or blank -> leave existing value untouched
+        sec, key = _CONFIG_FIELDS[flat]
+        local.setdefault(sec, {})[key] = str(value).strip()
+        written.append(flat)
+    if written:
+        _CONFIG_LOCAL.write_text(yaml.safe_dump(local, default_flow_style=False, sort_keys=False))
+    return written
 
 _clients: "set[queue.Queue]" = set()
 _recent: "collections.deque[str]" = collections.deque(maxlen=40)  # replay on (re)connect
@@ -117,14 +174,56 @@ class _Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _json(self, obj: dict, code: int = 200) -> None:
+        body = json.dumps(obj).encode()
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _read_body(self) -> dict:
+        length = int(self.headers.get("Content-Length", 0) or 0)
+        if not length:
+            return {}
+        try:
+            return json.loads(self.rfile.read(length).decode() or "{}")
+        except Exception:
+            return {}
+
     def do_GET(self):
         try:
             if self.path == "/events":
                 self._events()
             elif self.path.startswith("/tool"):
                 self._tool()
+            elif self.path == "/config":
+                self._json(_config_status())          # masked status only
             elif self.path in ("/", "/index.html", "/diagram.html"):
                 self._html()
+            else:
+                self.send_error(404)
+        except (BrokenPipeError, ConnectionResetError):
+            pass
+
+    def do_POST(self):
+        try:
+            if self.path == "/config":
+                written = _save_config(self._read_body())
+                self._json({"ok": True, "written": written})
+            elif self.path == "/restart":
+                # Apply new keys: ask the daemon to restart this app (server-side, no CORS).
+                def _do():
+                    import urllib.request
+                    try:
+                        urllib.request.urlopen(
+                            "http://localhost:8000/api/apps/restart-current-app",
+                            data=b"", timeout=8)
+                    except Exception as e:
+                        print(f"[webview] restart failed: {e}", flush=True)
+                self._json({"ok": True, "restarting": True})
+                threading.Timer(0.4, _do).start()
             else:
                 self.send_error(404)
         except (BrokenPipeError, ConnectionResetError):
