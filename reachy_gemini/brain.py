@@ -31,7 +31,10 @@ _TOOL_HINT = (
     "surprised, sad, proud, thinking…); look_around() when curious or "
     "asked to look; look_and_describe() whenever asked what you see or what's in front of "
     "you (you really can see through your camera); get_current_time() for the time or date "
-    "(state exactly what it returns, don't garble it). When the user says go to sleep, stand "
+    "(state exactly what it returns, don't garble it); get_weather(location) for weather, "
+    "temperature, or forecast; web_search(query) for news, current events, sports, prices, or "
+    "ANY fact you might not know or that could be out of date -- search instead of guessing. "
+    "When the user says go to sleep, stand "
     "by, be quiet for a while, or goodbye, call sleep() and give a short goodnight. Only call "
     "ignore() if the speech clearly was not meant for you and needs no reply."
 )

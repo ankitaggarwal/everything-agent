@@ -32,6 +32,18 @@ _ENERGETIC = {"headbanger_combo", "polyrhythm_combo", "dizzy_spin", "interwoven_
 
 _MUSIC_DIR = Path(__file__).resolve().parent.parent / "music"
 
+# WMO weather codes -> short spoken descriptions (Open-Meteo's `weather_code`).
+_WMO = {
+    0: "clear", 1: "mostly clear", 2: "partly cloudy", 3: "overcast",
+    45: "foggy", 48: "foggy", 51: "drizzling", 53: "drizzling", 55: "drizzling",
+    56: "freezing drizzle", 57: "freezing drizzle", 61: "raining lightly",
+    63: "raining", 65: "raining heavily", 66: "freezing rain", 67: "freezing rain",
+    71: "snowing lightly", 73: "snowing", 75: "snowing heavily", 77: "snow grains",
+    80: "with rain showers", 81: "with rain showers", 82: "with heavy showers",
+    85: "with snow showers", 86: "with snow showers", 95: "thunderstorms",
+    96: "thunderstorms with hail", 99: "thunderstorms with hail",
+}
+
 
 def _emit(name: str, detail: str, t0: float) -> None:
     txt = f"{name}({detail})" if detail else f"{name}()"
@@ -233,6 +245,77 @@ def build_tools(body, ctx: dict, cfg: dict | None = None) -> list:
             _emit("look_and_describe", "error", t0)
             return "I had trouble seeing just now."
 
+    default_city = (cfg or {}).get("weather", {}).get("default_location", "New Delhi")
+
+    def get_weather(location: str = "") -> str:
+        """Get the current weather and today's high/low for a place. Pass a city name; if
+        omitted, uses the user's default location. Call whenever the user asks about the
+        weather, temperature, whether it'll rain, or the forecast."""
+        t0 = time.monotonic()
+        import urllib.parse
+        import urllib.request
+        city = (location or default_city).strip()
+        try:
+            geo = json.loads(urllib.request.urlopen(
+                "https://geocoding-api.open-meteo.com/v1/search?" +
+                urllib.parse.urlencode({"name": city, "count": 1}), timeout=6).read())
+            if not geo.get("results"):
+                _emit("get_weather", f"{city}: not found", t0)
+                return f"I couldn't find a place called {city}."
+            r0 = geo["results"][0]
+            nm = r0["name"]
+            q = urllib.parse.urlencode({
+                "latitude": r0["latitude"], "longitude": r0["longitude"],
+                "current": "temperature_2m,apparent_temperature,relative_humidity_2m,weather_code",
+                "daily": "temperature_2m_max,temperature_2m_min", "timezone": "auto",
+                "forecast_days": 1})
+            d = json.loads(urllib.request.urlopen(
+                "https://api.open-meteo.com/v1/forecast?" + q, timeout=6).read())
+            cur, daily = d["current"], d["daily"]
+            desc = _WMO.get(int(cur["weather_code"]), "")
+            temp, feels = round(cur["temperature_2m"]), round(cur["apparent_temperature"])
+            hi, lo = round(daily["temperature_2m_max"][0]), round(daily["temperature_2m_min"][0])
+            out = (f"In {nm} it's {temp}°C and {desc}, feels like {feels}. "
+                   f"Today's high is {hi}, low {lo}.")
+            _emit("get_weather", f"{nm} {temp}°C {desc}", t0)
+            return out
+        except Exception as e:
+            print(f"[tool] weather failed: {e}", flush=True)
+            _emit("get_weather", "error", t0)
+            return "I couldn't get the weather just now."
+
+    def web_search(query: str) -> str:
+        """Search the web for CURRENT, real-world information and return a short answer.
+        Call whenever the user asks about news, current events, recent facts, sports
+        scores, prices, who/what/when something is, or anything you might not know or that
+        could be out of date. Always prefer this over guessing."""
+        t0 = time.monotonic()
+        client = vision["client"]
+        if client is None:
+            _emit("web_search", "no client", t0)
+            return "I can't search the web right now."
+        try:
+            from google.genai import types as gt
+            resp = client.models.generate_content(
+                model=vision["model"],
+                contents=query,
+                config=gt.GenerateContentConfig(
+                    tools=[gt.Tool(google_search=gt.GoogleSearch())],  # grounding
+                    thinking_config=gt.ThinkingConfig(thinking_budget=0),
+                    max_output_tokens=220,
+                    system_instruction=("You are the web-search helper for a voice robot. "
+                                        "Answer in one or two short, spoken-natural sentences. "
+                                        "Be current and factual. No markdown, no URLs, no lists."),
+                ),
+            )
+            ans = (resp.text or "").strip()
+            _emit("web_search", f"{query[:28]} → {ans[:28]}", t0)
+            return ans or "I couldn't find anything on that."
+        except Exception as e:
+            print(f"[tool] web_search failed: {e}", flush=True)
+            _emit("web_search", "error", t0)
+            return "I had trouble searching just now."
+
     def ignore() -> str:
         """Stay completely silent and do NOT respond. Call this when the speech was clearly
         not addressed to you, was background chatter, or simply needs no reply at all."""
@@ -252,5 +335,5 @@ def build_tools(body, ctx: dict, cfg: dict | None = None) -> list:
         _emit("sleep", "going dormant", t0)
         return "Going to sleep now — say 'Reachy' or 'wake up' when you need me."
 
-    return [get_current_time, set_expression, look_around, dance, stop,
-            look_and_describe, ignore, sleep]
+    return [get_current_time, get_weather, web_search, set_expression, look_around,
+            dance, stop, look_and_describe, ignore, sleep]

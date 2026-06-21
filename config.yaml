@@ -42,6 +42,11 @@ cartesia:
 dance:
   max_seconds: 600         # effectively the whole song; say "stop" to halt early
 
+# Weather via Open-Meteo (no API key needed). When the user asks "what's the weather"
+# without naming a city, this is the place used. Set it to your city.
+weather:
+  default_location: "New Delhi"
+
 # Where the voice goes in and comes out.
 #   local  -> this laptop's mic + speakers (sounddevice), no robot motion. For dev.
 #   reachy -> the Reachy Mini robot's mic + speaker + head/antenna motion.
