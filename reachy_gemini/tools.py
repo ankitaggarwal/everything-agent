@@ -316,6 +316,85 @@ def build_tools(body, ctx: dict, cfg: dict | None = None) -> list:
             _emit("web_search", "error", t0)
             return "I had trouble searching just now."
 
+    cart = (cfg or {}).get("cartesia", {})
+
+    def _say(text: str) -> None:
+        """Speak a line out loud from a background thread (for reminders firing later)."""
+        try:
+            import asyncio as _asyncio
+
+            from . import tts as _tts
+            _asyncio.run(_tts.speak(text, body, model=cart.get("tts_model", "sonic-2"),
+                                    voice_id=cart.get("voice_id", ""),
+                                    api_key=cart.get("api_key", ""),
+                                    language=cart.get("language", "en")))
+        except Exception as e:
+            print(f"[tool] reminder speak failed: {e}", flush=True)
+
+    def set_volume(level: int = 80) -> str:
+        """Set the robot's speaker volume, 0 to 100. Call when asked to be louder/quieter
+        or to set the volume to a level."""
+        t0 = time.monotonic()
+        try:
+            lvl = max(0, min(100, int(level)))
+        except Exception:
+            lvl = 80
+        import subprocess
+        for ctl in ("PCM", "Headset", "Master"):
+            try:
+                subprocess.run(["amixer", "-c", "0", "set", ctl, f"{lvl}%", "unmute"],
+                               capture_output=True, timeout=5)
+            except Exception:
+                pass
+        _emit("set_volume", f"{lvl}%", t0)
+        return f"Volume set to {lvl} percent."
+
+    def set_reminder(minutes: float, about: str = "") -> str:
+        """Set a timer or reminder. After `minutes` minutes the robot says the reminder out
+        loud. Call for 'remind me in N minutes to X', 'set a timer for N minutes', etc."""
+        t0 = time.monotonic()
+        try:
+            secs = max(1.0, float(minutes) * 60.0)
+        except Exception:
+            secs = 60.0
+        msg = (about or "").strip()
+
+        def _fire():
+            line = f"Reminder: {msg}" if msg else "Time's up! Your timer is done."
+            events.emit(events.TOOL_CALL, text=f"⏰ {line}")
+            _say(line)
+
+        threading.Timer(secs, _fire).start()
+        when = f"{int(secs // 60)} minutes" if secs >= 60 else f"{int(secs)} seconds"
+        _emit("set_reminder", f"{when}: {msg[:24]}", t0)
+        return f"Okay, I'll remind you in {when}" + (f" about {msg}." if msg else ".")
+
+    def take_photo() -> str:
+        """Take a photo with the camera and save it. Call when asked to take a picture,
+        photo, or selfie."""
+        t0 = time.monotonic()
+        if robot is None:
+            _emit("take_photo", "no camera", t0)
+            return "I don't have a camera right now."
+        try:
+            import numpy as np
+            from PIL import Image
+            frame = robot.media.get_frame()
+            if frame is None:
+                _emit("take_photo", "no frame", t0)
+                return "My camera didn't give me an image."
+            d = Path(__file__).resolve().parent.parent / "photos"
+            d.mkdir(exist_ok=True)
+            fn = d / (time.strftime("%Y%m%d-%H%M%S") + ".jpg")
+            rgb = np.ascontiguousarray(frame[:, :, ::-1])  # BGR -> RGB
+            Image.fromarray(rgb).save(str(fn), format="JPEG", quality=85)
+            _emit("take_photo", fn.name, t0)
+            return "Got it — say cheese! I saved your photo."
+        except Exception as e:
+            print(f"[tool] take_photo failed: {e}", flush=True)
+            _emit("take_photo", "error", t0)
+            return "I couldn't take the photo just now."
+
     def ignore() -> str:
         """Stay completely silent and do NOT respond. Call this when the speech was clearly
         not addressed to you, was background chatter, or simply needs no reply at all."""
@@ -335,5 +414,6 @@ def build_tools(body, ctx: dict, cfg: dict | None = None) -> list:
         _emit("sleep", "going dormant", t0)
         return "Going to sleep now — say 'Reachy' or 'wake up' when you need me."
 
-    return [get_current_time, get_weather, web_search, set_expression, look_around,
-            dance, stop, look_and_describe, ignore, sleep]
+    return [get_current_time, get_weather, web_search, set_volume, set_reminder,
+            take_photo, set_expression, look_around, dance, stop, look_and_describe,
+            ignore, sleep]
