@@ -24,13 +24,17 @@ import time
 # name ends on a -y / -ie / -i vowel, so we match stems (reach/rich/ritch/reech/leech)
 # only WITH such an ending. Bare "reach" / "rich" are deliberately NOT matched -- they
 # are common words ("reach for it", "she is rich") and would false-trigger constantly.
+# Note the ridd/riddh/redd/ridh stems: Gemini STT transcribes "Reachy" as "Riddhi"
+# (Cartesia hears "Richie") -- confirmed live by the dual-STT compare. The -hi ending
+# catches "riddhi" specifically.
 _WAKE_RE = re.compile(
-    r"\b(?:reach|reech|rich|ritch|leech)(?:y|ie|i|ey|ee|ies)\b",
+    r"\b(?:reach|reech|rich|ritch|leech|ridd|riddh|redd|ridh)(?:y|ie|i|ey|ee|ies|hi)\b",
     re.IGNORECASE,
 )
 # Full name-variants STT writes whole (these don't fit the stem+ending shape above).
 _WAKE_EXACT = {"reachy", "reachie", "reachi", "richie", "ritchie", "reechy",
-               "reacher", "richy", "leechy", "reachey", "riche"}
+               "reacher", "richy", "leechy", "reachey", "riche",
+               "riddhi", "riddy", "reddy", "ridhi", "reddi", "reedy", "riddhe"}
 
 # Phrases that wake it specifically out of sleep.
 _SLEEP_WAKE_RE = re.compile(r"\b(wake up|wake|wakey|good morning|you awake|hello reachy)\b",

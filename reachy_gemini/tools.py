@@ -98,8 +98,9 @@ def build_tools(body, ctx: dict, cfg: dict | None = None) -> list:
 
     def set_expression(emotion: str) -> str:
         """Play a full-body emotion animation from the robot's inbuilt emotion library.
-        emotion is one of: happy, excited, curious, surprised, sad, confused, thinking,
-        proud, welcoming, yes, no, neutral. Use it naturally and often to react to the user."""
+        Pass whatever feeling fits: happy, excited, curious, surprised, sad, confused,
+        thinking, proud, welcoming, yes, no, laughing, grateful, loving, scared, shy,
+        enthusiastic, tired, bored, amazed, and more. Use it naturally and often to react."""
         t0 = time.monotonic()
         name = expressions.perform(body, emotion)
         _emit("set_expression", name, t0)
