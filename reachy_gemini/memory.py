@@ -64,11 +64,16 @@ class Memory:
         c = self._client_or_none()
         if c is None or not query:
             return []
+        # mem0 v2 wants filters={'user_id': ...}; older versions took user_id=. Try v2, fall back.
         try:
-            return self._texts(c.search(query, user_id=self.user_id, limit=limit))
+            return self._texts(c.search(query, version="v2",
+                                        filters={"user_id": self.user_id}, limit=limit))
         except Exception as e:
-            print(f"[memory] search failed: {e}", flush=True)
-            return []
+            try:
+                return self._texts(c.search(query, user_id=self.user_id, limit=limit))
+            except Exception:
+                print(f"[memory] search failed: {e}", flush=True)
+                return []
 
     def remember(self, fact: str) -> bool:
         c = self._client_or_none()
