@@ -1,106 +1,112 @@
-"""Robot expressions — short, characterful gestures that convey emotion.
+"""Robot expressions via the INBUILT emotion library.
 
-The brain calls set_expression(emotion); we play a quick sequence of head moves
-(tilt / nod / look) + antenna positions + a little body sway, so the robot really
-"acts" the feeling instead of just twitching its antennas. Runs in a background
-thread (goto_target blocks per step, so steps just chain) and never blocks the loop.
+Reachy Mini ships a library of professionally-recorded, full-body emotion
+animations -- `pollen-robotics/reachy-mini-emotions-library`, which the daemon
+preloads/caches on the robot at startup. We play those instead of hand-built head
+poses: they're expressive and, crucially, guaranteed reachable (our hand-tuned
+poses overflowed the head's IK envelope -> "Collision / not achievable").
 
-Per step: (head_kwargs_for_create_head_pose, [left_antenna, right_antenna], body_yaw_rad, duration_s)
-  head angles are DEGREES: roll = head tilt L/R, pitch = nod (up/down), yaw = look L/R.
-  antennas ~ radians (0.5 = perked up, -0.4 = drooped). body_yaw ~ radians (small = subtle sway).
+set_expression(emotion) maps the brain's emotion word (happy, curious, sad, ...)
+to the closest recorded move and plays it with robot.play_move() -- the same call
+we already use for dances. The real move names are discovered at load time via
+list_moves(), so we adapt to whatever the dataset actually contains. Falls back to
+a gentle antenna wiggle only if the library or robot isn't available.
 """
 from __future__ import annotations
 
+import random
 import threading
-import time
 
-_N = ({}, [0.0, 0.0], 0.0, 0.4)  # neutral / home
+_DATASET = "pollen-robotics/reachy-mini-emotions-library"
 
-_SEQ = {
-    # bright, bouncy, antennas up, happy little sway
-    "happy": [
-        ({"pitch": 12}, [0.5, 0.5], 0.0, 0.3),
-        ({"pitch": 16, "roll": 9}, [0.55, 0.3], 0.12, 0.28),
-        ({"pitch": 14, "roll": -9}, [0.3, 0.55], -0.12, 0.28),
-        ({"pitch": 14, "roll": 6}, [0.55, 0.35], 0.08, 0.26),
-        _N,
-    ],
-    # fast, energetic head bobs + flicking antennas + body wiggle
-    "excited": [
-        ({"pitch": 16}, [0.65, 0.65], 0.1, 0.16),
-        ({"pitch": 6}, [0.2, 0.2], -0.1, 0.16),
-        ({"pitch": 18}, [0.65, 0.65], 0.1, 0.16),
-        ({"pitch": 6}, [0.2, 0.2], -0.1, 0.16),
-        ({"pitch": 16}, [0.6, 0.6], 0.0, 0.16),
-        _N,
-    ],
-    # the classic inquisitive head TILT + lean + look to the side, slow and held
-    "curious": [
-        ({"roll": 24, "pitch": 6, "yaw": 14}, [0.55, -0.15], 0.12, 0.55),
-        ({"roll": 24, "pitch": 6, "yaw": 14}, [0.5, -0.1], 0.12, 0.5),   # hold the tilt
-        ({"roll": -18, "pitch": 6, "yaw": -10}, [-0.15, 0.55], -0.1, 0.55),
-        _N,
-    ],
-    # head sinks down, antennas droop, slow slump
-    "sad": [
-        ({"pitch": -22}, [-0.4, -0.4], 0.0, 0.8),
-        ({"pitch": -22, "roll": 9}, [-0.4, -0.4], 0.08, 0.6),  # slump to one side
-        ({"pitch": -18}, [-0.35, -0.35], 0.0, 0.6),
-        _N,
-    ],
-    # quick snap back/up, antennas shoot up, hold wide, settle
-    "surprised": [
-        ({"pitch": 24}, [0.7, 0.7], 0.0, 0.15),
-        ({"pitch": 20}, [0.65, 0.65], 0.0, 0.3),
-        _N,
-    ],
-    # an emphatic nod
-    "yes": [
-        ({"pitch": -14}, [0.35, 0.35], 0.0, 0.22),
-        ({"pitch": 16}, [0.45, 0.45], 0.0, 0.22),
-        ({"pitch": -14}, [0.35, 0.35], 0.0, 0.22),
-        ({"pitch": 16}, [0.45, 0.45], 0.0, 0.22),
-        _N,
-    ],
-    # a head/body shake
-    "no": [
-        ({"yaw": 16}, [0.25, 0.25], 0.18, 0.28),
-        ({"yaw": -16}, [0.25, 0.25], -0.18, 0.28),
-        ({"yaw": 16}, [0.25, 0.25], 0.18, 0.28),
-        _N,
-    ],
-    "neutral": [_N],
+# Map the brain's emotion words -> name-stems to look for in the dataset, in priority
+# order. We play any recorded move whose name starts with / contains a stem, e.g.
+# "curious" -> curious1 / curious2 / inquiring1. Discovered names win; this is just
+# how we route an abstract emotion onto whatever the library happens to call it.
+_ALIASES = {
+    "happy":     ["happy", "cheerful", "joy", "glad", "content", "amused"],
+    "excited":   ["excited", "amazed", "enthusiast", "success", "celebr", "energ"],
+    "curious":   ["curious", "inquiring", "intrigued", "interested", "attentive"],
+    "surprised": ["surprised", "amazed", "shock", "wow", "astonish", "oups"],
+    "sad":       ["sad", "disappointed", "down", "sorry", "unhappy", "dejected"],
+    "confused":  ["confused", "puzzled", "uncertain", "thoughtful", "thinking"],
+    "thinking":  ["thinking", "thoughtful", "ponder", "wondering", "reflect"],
+    "proud":     ["proud", "confident"],
+    "welcoming": ["welcoming", "greeting", "waving", "hello"],
+    "yes":       ["yes", "affirmative", "agree", "nod", "approval"],
+    "no":        ["no", "disagree", "refuse", "deny", "disapprov"],
+    "neutral":   ["attentive", "idle", "calm", "listening", "neutral"],
 }
-NAMES = sorted(_SEQ)
-_DEFAULT = "happy"
+NAMES = sorted(_ALIASES)           # the emotion words we advertise to the brain
+_DEFAULT_WORD = "happy"
+
+_lib = {"moves": None, "names": [], "loaded": False}
+_lock = threading.Lock()           # one expression at a time -- no overlapping play_move
+
+
+def _load() -> None:
+    if _lib["loaded"]:
+        return
+    _lib["loaded"] = True
+    try:
+        from reachy_mini.motion.recorded_move import RecordedMoves
+        rm = RecordedMoves(_DATASET)                  # loads from the daemon's cache
+        _lib["moves"] = rm
+        _lib["names"] = rm.list_moves()
+        print(f"[expr] {len(_lib['names'])} emotion moves loaded: {_lib['names']}", flush=True)
+    except Exception as e:
+        print(f"[expr] emotion library unavailable ({e}) -- antenna fallback", flush=True)
+
+
+def _pick(emotion: str):
+    """Choose a recorded-move name for the emotion word, or None if the library's empty."""
+    names = _lib["names"]
+    if not names:
+        return None
+    stems = _ALIASES.get(emotion, [emotion]) + _ALIASES[_DEFAULT_WORD]
+    low = [(n, n.lower()) for n in names]
+    for stem in stems:
+        hits = [n for n, nl in low if nl.startswith(stem) or stem in nl]
+        if hits:
+            return random.choice(hits)      # variety among curious1 / curious2 / ...
+    return random.choice(names)             # last resort: still do something expressive
+
+
+def _antenna_fallback(robot) -> None:
+    """A quick, always-reachable antenna flick when the recorded library isn't there."""
+    import time
+    try:
+        for a in (0.5, -0.3, 0.4, 0.0):
+            robot.set_target_antenna_joint_positions([float(a), float(-a)])
+            time.sleep(0.12)
+    except Exception:
+        pass
 
 
 def perform(body, emotion: str) -> str:
-    """Play an expressive gesture on the robot in a background thread. Returns the name used."""
-    name = (emotion or "").strip().lower()
-    seq = _SEQ.get(name)
-    if seq is None:
-        name, seq = _DEFAULT, _SEQ[_DEFAULT]
-
+    """Play an expressive emotion on the robot (background thread). Returns a label."""
+    word = (emotion or "").strip().lower() or _DEFAULT_WORD
     robot = getattr(body, "robot", None)
     if robot is None:
-        return name  # laptop/mock: nothing to move
-    try:
-        from reachy_mini.utils import create_head_pose
-    except Exception as e:
-        print(f"[expr] create_head_pose unavailable: {e}", flush=True)
-        return name
+        return word                          # laptop/mock: nothing to move
 
     def _run():
-        for head_kw, antennas, body_yaw, dur in seq:
+        if not _lock.acquire(blocking=False):
+            return                           # an expression is already playing; skip
+        try:
+            _load()
+            name = _pick(word)
+            if name is None:
+                _antenna_fallback(robot)
+                return
             try:
-                head = create_head_pose(**head_kw)  # degrees by default
-                robot.goto_target(head=head,
-                                  antennas=[float(antennas[0]), float(antennas[1])],
-                                  body_yaw=float(body_yaw), duration=float(dur))  # blocks ~dur
+                move = _lib["moves"].get(name)
+                robot.play_move(move, initial_goto_duration=0.6)   # blocks ~move duration
             except Exception as e:
-                print(f"[expr] {name} step failed: {e}", flush=True)
-                break
+                print(f"[expr] play {name!r} failed: {e}", flush=True)
+                _antenna_fallback(robot)
+        finally:
+            _lock.release()
 
     threading.Thread(target=_run, daemon=True).start()
-    return name
+    return word

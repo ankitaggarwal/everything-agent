@@ -58,11 +58,26 @@ audio:
 # so silence isn't billed. Levels are int16 peak amplitude (0-32767). Watch the
 # journal's "[mic] ... peak=" heartbeat to tune these to your room.
 vad:
-  start_level: 3000        # peak that OPENS the gate. Above the ~1800 ambient noise floor.
-  stop_level: 1200         # drop below this, then wait hangover_s, then close the gate
+  start_level: 4500        # peak that OPENS the gate. Raised from 3000 to reject background.
+  stop_level: 1500         # drop below this, then wait hangover_s, then close the gate
   hangover_s: 1.0          # keep streaming this long after the last loud frame
   echo_guard_s: 0.5        # ignore the mic this long after the robot speaks (anti-echo loop)
   preroll_chunks: 6        # chunks (~50 ms each) buffered before onset so it isn't clipped
+
+# Wake gating: Reachy only acts when addressed by name ("Reachy" -- matched fuzzily
+# since STT garbles it to "richie/reach"), then stays awake for a short follow-up
+# window so you don't repeat the name every sentence. The sleep() tool drops it
+# dormant until you say its name / "wake up". This kills replies to background talk.
+wake:
+  require_word: true       # idle -> must hear its name to engage (false = always-on)
+  followup_s: 25           # stay awake this long after a reply (follow-ups need no name)
+
+# Debug: capture each utterance's audio and transcribe it with BOTH STT models so you
+# can SEE what each one heard for the same audio (surfaced on the diagram + a JSONL log).
+debug:
+  log_audio: true          # save each utterance to logs/audio/*.wav
+  compare_stt: true        # also run the other STT model and log/show both transcripts
+  audio_dir: "logs/audio"
 
 # Live diagram: a web page that moves with what Reachy actually hears & says.
 web:

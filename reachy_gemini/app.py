@@ -13,13 +13,19 @@ from __future__ import annotations
 
 import asyncio
 import collections
+import json
+import os
+import random
 import time
+import wave
 
 import numpy as np
 
-from . import events, stt, tts
+from . import events, stt, tts, wake
 from .body import make_body
 from .brain import Brain
+
+_ACKS = ["Mm-hm?", "Yeah?", "I'm listening.", "What's up?", "Yes?"]
 
 
 def _ms(a: float, b: float) -> int:
@@ -37,6 +43,8 @@ class Agent:
         self._tts_model = c.get("tts_model", "sonic-2")
         self._voice_id = c.get("voice_id", "")
         self._stt_backend = c.get("stt_backend", "gemini")  # gemini (better) | cartesia (faster)
+        self.gate = wake.WakeGate(cfg)            # only act when addressed by name + sleep
+        self._debug = cfg.get("debug", {})        # log_audio / compare_stt
 
     # --- the pipeline ------------------------------------------------------ #
     async def _greet(self) -> None:
@@ -112,8 +120,64 @@ class Agent:
                                     ms=_ms(t_end, t_stt))
                         return None, None
                     events.emit(events.TRANSCRIBED, text=text, ms=_ms(t_end, t_stt))
+                    if self._debug.get("compare_stt") or self._debug.get("log_audio"):
+                        # Capture the raw audio + run the OTHER STT model, off the hot path,
+                        # so you can SEE what each model heard for the exact same utterance.
+                        asyncio.create_task(self._debug_capture(audio, use_cartesia, text))
                     return text, t_end
         return None, None
+
+    # --- debug: audio capture + model comparison --------------------------- #
+    def _debug_capture(self, audio: bytes, used_cartesia: bool, live_text: str):
+        async def _run():
+            wav_path = self._save_wav(audio) if self._debug.get("log_audio") else None
+            gemini_text = cartesia_text = None
+            live = "cartesia" if used_cartesia else "gemini"
+            if used_cartesia:
+                cartesia_text = live_text
+            else:
+                gemini_text = live_text
+            if self._debug.get("compare_stt"):
+                try:  # transcribe the SAME audio with the other model
+                    if used_cartesia:
+                        gemini_text = await stt.transcribe_gemini(
+                            audio, client=self.brain.client, model=self.brain.model)
+                    else:
+                        cartesia_text = await stt.transcribe(
+                            audio, api_key=self._cart["api_key"], model=self._stt_model,
+                            language=self._cart["language"])
+                except Exception as e:
+                    print(f"[compare] other STT failed: {e}", flush=True)
+                events.emit(events.COMPARE,
+                            text=f"Gemini: «{gemini_text or '—'}»   |   Cartesia: «{cartesia_text or '—'}»")
+            self._log_compare({"gemini": gemini_text, "cartesia": cartesia_text,
+                               "live": live, "wav": wav_path})
+        return _run()
+
+    def _save_wav(self, audio: bytes):
+        try:
+            d = self._debug.get("audio_dir", "logs/audio")
+            os.makedirs(d, exist_ok=True)
+            fn = os.path.join(d, time.strftime("%Y%m%d-%H%M%S") +
+                              f"-{int(time.time() * 1000) % 1000:03d}.wav")
+            with wave.open(fn, "wb") as w:
+                w.setnchannels(1)
+                w.setsampwidth(2)
+                w.setframerate(16000)
+                w.writeframes(audio)
+            return fn
+        except Exception as e:
+            print(f"[compare] save wav failed: {e}", flush=True)
+            return None
+
+    def _log_compare(self, row: dict):
+        try:
+            os.makedirs("logs", exist_ok=True)
+            row = {"t": time.strftime("%Y-%m-%d %H:%M:%S"), **row}
+            with open("logs/stt_compare.jsonl", "a") as f:
+                f.write(json.dumps(row, ensure_ascii=False) + "\n")
+        except Exception as e:
+            print(f"[compare] log failed: {e}", flush=True)
 
     async def _respond(self, text: str, t_end: float) -> None:
         t_stt_done = time.monotonic()  # transcript just came back
@@ -159,6 +223,14 @@ class Agent:
         except Exception as e:
             print(f"[webview] disabled: {e}", flush=True)
 
+    async def _ack(self) -> None:
+        """Bare attention call (just the name / 'wake up') -> a quick spoken acknowledgement."""
+        line = random.choice(_ACKS)
+        events.emit(events.REPLY, text=line)
+        await tts.speak(line, self.body, model=self._tts_model, voice_id=self._voice_id,
+                        **self._cart)
+        self.gate.note_replied()
+
     async def run(self, stop_event=None) -> None:
         self.body.start()
         self._start_webview()
@@ -166,7 +238,22 @@ class Agent:
             await self._greet()
             while not (stop_event is not None and stop_event.is_set()):
                 text, t_end = await self._listen_and_transcribe(stop_event)
-                if text:
-                    await self._respond(text, t_end)
+                if not text:
+                    continue
+                # Only act when addressed (its name) or within the follow-up window;
+                # background chatter is shown as SKIPPED, never silently swallowed.
+                addressed, reason, clean = self.gate.decide(text)
+                if not addressed:
+                    events.emit(events.SKIPPED, text=f"{reason} · “{text[:48]}”")
+                    continue
+                if not clean.strip():
+                    await self._ack()           # they only said the name -> acknowledge
+                    continue
+                await self._respond(clean, t_end)
+                self.gate.note_replied()         # keep the follow-up window open
+                if self.brain.slept:             # the model chose to go dormant
+                    self.gate.sleep()
+                    events.emit(events.SKIPPED,
+                                text="asleep — say “Reachy” or “wake up” to wake me")
         finally:
             self.body.stop()

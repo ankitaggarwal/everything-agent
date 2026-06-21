@@ -42,6 +42,17 @@ def _bg(fn) -> None:
     threading.Thread(target=fn, daemon=True).start()
 
 
+def _goto_sleep(robot) -> None:
+    """A gentle 'resting' posture: head dips, antennas relax. Motors stay ENABLED so the
+    head holds the pose (we do NOT disable motors -- that's what makes the head flop)."""
+    try:
+        from reachy_mini.utils import create_head_pose
+        robot.goto_target(head=create_head_pose(pitch=-12, degrees=True),
+                          antennas=[-0.3, -0.3], body_yaw=0.0, duration=1.2)
+    except Exception as e:
+        print(f"[tool] goto_sleep failed: {e}", flush=True)
+
+
 def build_tools(body, ctx: dict, cfg: dict | None = None) -> list:
     """Return the tool callables, closing over the robot body, shared ctx, and config."""
     robot = getattr(body, "robot", None)
@@ -86,8 +97,9 @@ def build_tools(body, ctx: dict, cfg: dict | None = None) -> list:
         return now
 
     def set_expression(emotion: str) -> str:
-        """Show an emotion with the robot's antennas. emotion is one of: happy, excited,
-        sad, curious, surprised, yes, no, neutral. Use it naturally to react to the user."""
+        """Play a full-body emotion animation from the robot's inbuilt emotion library.
+        emotion is one of: happy, excited, curious, surprised, sad, confused, thinking,
+        proud, welcoming, yes, no, neutral. Use it naturally and often to react to the user."""
         t0 = time.monotonic()
         name = expressions.perform(body, emotion)
         _emit("set_expression", name, t0)
@@ -228,4 +240,16 @@ def build_tools(body, ctx: dict, cfg: dict | None = None) -> list:
         _emit("ignore", "staying silent", t0)
         return "ignored — staying silent"
 
-    return [get_current_time, set_expression, look_around, dance, stop, look_and_describe, ignore]
+    def sleep() -> str:
+        """Go to sleep / stand by. Call this when the user says sleep, go to sleep, stand by,
+        be quiet for a while, that's all, or goodbye. While asleep you ignore EVERYTHING until
+        the user wakes you by name ("Reachy") or says "wake up". Give a brief goodnight first."""
+        t0 = time.monotonic()
+        ctx["sleep"] = True
+        if robot is not None:
+            _bg(lambda: _goto_sleep(robot))
+        _emit("sleep", "going dormant", t0)
+        return "Going to sleep now — say 'Reachy' or 'wake up' when you need me."
+
+    return [get_current_time, set_expression, look_around, dance, stop,
+            look_and_describe, ignore, sleep]

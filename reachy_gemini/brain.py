@@ -27,11 +27,13 @@ _TOOL_HINT = (
     "dance(move='madagascar') for the Madagascar 'I like to move it' song, dance(move="
     "'mcqueen') for the Cars / Lightning McQueen song. When they say "
     "stop / that's enough / quiet, call stop(). Use "
-    "set_expression(emotion) to react with your antennas; look_around() when curious or "
+    "set_expression(emotion) to react with a full-body emotion animation (happy, curious, "
+    "surprised, sad, proud, thinking…); look_around() when curious or "
     "asked to look; look_and_describe() whenever asked what you see or what's in front of "
     "you (you really can see through your camera); get_current_time() for the time or date "
-    "(state exactly what it returns, don't garble it). Only call ignore() if the speech "
-    "clearly was not meant for you and needs no reply."
+    "(state exactly what it returns, don't garble it). When the user says go to sleep, stand "
+    "by, be quiet for a while, or goodbye, call sleep() and give a short goodnight. Only call "
+    "ignore() if the speech clearly was not meant for you and needs no reply."
 )
 
 
@@ -44,14 +46,17 @@ class Brain:
         self.max_turns = int(g.get("history_turns", 6))
         self.client = genai.Client(api_key=g["api_key"])
         self.history: list[types.Content] = []
-        self.ctx = {"ignored": False}
+        self.ctx = {"ignored": False, "sleep": False}
         self.tools = tools_mod.build_tools(body, self.ctx, cfg) if body is not None else []
         self.ignored = False  # did the model choose to stay silent this turn?
+        self.slept = False    # did the model call sleep() this turn?
 
     async def ask(self, text: str) -> str:
         """User text -> reply text (''=no reply). Sets self.ignored if it chose silence."""
         self.ctx["ignored"] = False
+        self.ctx["sleep"] = False
         self.ignored = False
+        self.slept = False
         self.history.append(types.Content(role="user", parts=[types.Part(text=text)]))
         reply = None
         for attempt in range(3):
@@ -78,6 +83,7 @@ class Brain:
                 self.history.pop()
                 return ""
 
+        self.slept = bool(self.ctx.get("sleep"))
         self.ignored = bool(self.ctx.get("ignored"))
         if self.ignored:
             self.history.pop()  # drop ambient / not-for-me from context

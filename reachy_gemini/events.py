@@ -19,11 +19,14 @@ TOOL_CALL = "tool"            # the model called a tool (time / expression / dan
 REPLY = "reply"               # Gemini's reply text is in
 SPEAKING = "speaking"         # Cartesia TTS audio is playing back
 DONE = "done"                 # turn complete
+SKIPPED = "skipped"           # heard, but not acted on (no wake word / asleep) -- shown, never silent
+COMPARE = "compare"           # debug: what each STT model transcribed for the same audio
 ERROR = "error"               # something in the pipeline failed (debug aid)
 
 _ICONS = {
     LISTENING: "🎙️ ", HEARING: "👂", TRANSCRIBING: "✍️ ", TRANSCRIBED: "📝",
-    THINKING: "🧠", TOOL_CALL: "🔧", REPLY: "💬", SPEAKING: "🔊", DONE: "✓", ERROR: "⚠️ ",
+    THINKING: "🧠", TOOL_CALL: "🔧", REPLY: "💬", SPEAKING: "🔊", DONE: "✓",
+    SKIPPED: "💤", COMPARE: "🆚", ERROR: "⚠️ ",
 }
 
 _listeners: list[Callable[[str, dict], None]] = []
